@@ -423,6 +423,7 @@
     setLog(parts.join('  ') || '読み込めるファイルがありませんでした。', notes.length ? 'warn' : 'ok');
 
     if (loaded.length) {
+      document.querySelectorAll('.sample-card.is-current').forEach((el) => el.classList.remove('is-current'));
       await saveNow();
       if (state.code.html.trim()) runPreview();
     }
@@ -1020,11 +1021,231 @@
   });
 
   // ============================================================
+  //  サンプルゲーム(GitHubの sample game フォルダのzipを読み込む)
+  // ============================================================
+  const SAMPLE = {
+    owner: 'h1ro223',
+    repo: 'Local_Manager',
+    branch: 'main',
+    dir: 'sample game',
+    // API制限などで一覧が取れない時用の固定リスト
+    fallback: ['Boxing', 'English', 'MOBA', 'Race', 'Romance', 'Survivors', 'Tycoon'],
+    labels: {
+      Boxing: 'ボクシング',
+      English: '英語学習',
+      MOBA: 'MOBA',
+      Race: 'レース',
+      Romance: '恋愛ADV',
+      Survivors: 'サバイバー',
+      Tycoon: '経営シミュ',
+    },
+    cacheKey: 'lc2_sample_list',
+    cacheMs: 60 * 60 * 1000, // 1時間はAPIを叩かずキャッシュを使う
+    jszipUrl: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+  };
+
+  const sampleEls = {
+    root: document.querySelector('.samples'),
+    list: $('sampleList'),
+    status: $('sampleStatus'),
+    refresh: $('sampleRefreshBtn'),
+  };
+
+  let sampleBusy = false;
+  let jszipPromise = null;
+
+  function readSampleCache() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(SAMPLE.cacheKey) || 'null');
+      if (raw && Array.isArray(raw.list) && raw.list.length) return raw;
+    } catch (_) { /* 何もしない */ }
+    return null;
+  }
+
+  async function fetchSampleList(force) {
+    const cached = readSampleCache();
+    if (!force && cached && Date.now() - (cached.at || 0) < SAMPLE.cacheMs) {
+      return { list: cached.list, source: 'cache' };
+    }
+    try {
+      const url = `https://api.github.com/repos/${SAMPLE.owner}/${SAMPLE.repo}/contents/${encodeURIComponent(SAMPLE.dir)}?ref=${SAMPLE.branch}`;
+      const res = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error('形式エラー');
+      const list = data
+        .filter((f) => f && f.type === 'file' && /\.zip$/i.test(f.name))
+        .map((f) => f.name.replace(/\.zip$/i, ''))
+        .sort((a, b) => a.localeCompare(b));
+      if (!list.length) throw new Error('zipなし');
+      try { localStorage.setItem(SAMPLE.cacheKey, JSON.stringify({ list, at: Date.now() })); } catch (_) { /* 何もしない */ }
+      return { list, source: 'api' };
+    } catch (_) {
+      if (cached) return { list: cached.list, source: 'stale' };
+      return { list: SAMPLE.fallback.slice(), source: 'fallback' };
+    }
+  }
+
+  function sampleZipUrl(name) {
+    return `./${encodeURIComponent(SAMPLE.dir)}/${encodeURIComponent(name)}.zip`;
+  }
+
+  function renderSamples(list, source) {
+    sampleEls.list.innerHTML = '';
+    if (!list.length) {
+      const p = document.createElement('p');
+      p.className = 'samples__empty';
+      p.textContent = 'サンプルがありません';
+      sampleEls.list.appendChild(p);
+      return;
+    }
+    list.forEach((name) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sample-card';
+      btn.setAttribute('role', 'listitem');
+      btn.dataset.name = name;
+
+      const badge = document.createElement('span');
+      badge.className = 'sample-card__badge';
+      badge.textContent = name.slice(0, 2).toUpperCase();
+
+      const text = document.createElement('span');
+      text.className = 'sample-card__text';
+      const title = document.createElement('span');
+      title.className = 'sample-card__title';
+      title.textContent = SAMPLE.labels[name] || name;
+      const file = document.createElement('span');
+      file.className = 'sample-card__file';
+      file.textContent = `${name}.zip`;
+      text.append(title, file);
+
+      btn.append(badge, text);
+      btn.addEventListener('click', () => loadSample(name, btn));
+      sampleEls.list.appendChild(btn);
+    });
+
+    const count = `${list.length}本`;
+    sampleEls.status.classList.toggle('is-warn', source === 'fallback' || source === 'stale');
+    if (source === 'fallback') {
+      sampleEls.status.textContent = `${count}(一覧の取得に失敗したため固定リストを表示)`;
+    } else if (source === 'stale') {
+      sampleEls.status.textContent = `${count}(前回取得した一覧を表示)`;
+    } else {
+      sampleEls.status.textContent = `${count} / タップで読み込んで実行`;
+    }
+  }
+
+  async function refreshSamples(force) {
+    sampleEls.refresh.disabled = true;
+    sampleEls.status.classList.remove('is-warn');
+    sampleEls.status.textContent = '一覧を読み込み中...';
+    const { list, source } = await fetchSampleList(force);
+    renderSamples(list, source);
+    sampleEls.refresh.disabled = false;
+  }
+
+  // JSZipは使う時だけ読み込む(初回表示を軽くするため)
+  function loadJSZip() {
+    if (window.JSZip) return Promise.resolve(window.JSZip);
+    if (jszipPromise) return jszipPromise;
+    jszipPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = SAMPLE.jszipUrl;
+      s.async = true;
+      s.onload = () => (window.JSZip ? resolve(window.JSZip) : reject(new Error('JSZipの初期化に失敗')));
+      s.onerror = () => reject(new Error('JSZipを読み込めませんでした(通信を確認してください)'));
+      document.head.appendChild(s);
+    });
+    jszipPromise.catch(() => { jszipPromise = null; });
+    return jszipPromise;
+  }
+
+  // zip内から html/css/js を1つずつ選ぶ(フォルダに入っていてもOK)
+  function pickZipEntries(zip) {
+    const found = { html: [], css: [], js: [] };
+    zip.forEach((path, entry) => {
+      if (entry.dir) return;
+      if (/(^|\/)__MACOSX\//.test(path) || /(^|\/)\.[^/]*$/.test(path)) return;
+      const type = detectType({ name: path, type: '' });
+      if (type) found[type].push(entry);
+    });
+    const score = (entry, type) => {
+      const base = entry.name.split('/').pop().toLowerCase();
+      const depth = entry.name.split('/').length;
+      return (base === DEFAULT_NAME[type] ? 0 : 1000) + depth * 10 + entry.name.length / 1000;
+    };
+    const picked = {};
+    TYPES.forEach((t) => {
+      found[t].sort((a, b) => score(a, t) - score(b, t));
+      picked[t] = found[t][0] || null;
+    });
+    return picked;
+  }
+
+  async function loadSample(name, card) {
+    if (sampleBusy) return;
+    if (TYPES.some((t) => state.edited[t])) {
+      const ok = window.confirm('エディタで編集した内容があります。サンプルで置き換えてよろしいですか?');
+      if (!ok) return;
+    }
+
+    const label = SAMPLE.labels[name] || name;
+    sampleBusy = true;
+    sampleEls.root.classList.add('is-busy');
+    card.classList.add('is-loading');
+    setLog(`${label}(${name}.zip)を読み込み中...`);
+
+    try {
+      const [JSZip, buffer] = await Promise.all([
+        loadJSZip(),
+        fetch(sampleZipUrl(name), { cache: 'no-cache' }).then((res) => {
+          if (!res.ok) throw new Error(`zipを取得できませんでした(HTTP ${res.status})`);
+          return res.arrayBuffer();
+        }),
+      ]);
+
+      const zip = await JSZip.loadAsync(buffer);
+      const picked = pickZipEntries(zip);
+      if (!picked.html) throw new Error('zipの中にHTMLファイルが見つかりません');
+
+      for (const t of TYPES) {
+        const entry = picked[t];
+        const text = entry ? (await entry.async('string')).replace(/^\uFEFF/, '') : '';
+        setCode(t, text, entry ? entry.name.split('/').pop() : '', false);
+      }
+
+      await saveNow();
+      runPreview();
+
+      sampleEls.list.querySelectorAll('.sample-card').forEach((el) => el.classList.remove('is-current'));
+      card.classList.add('is-current');
+
+      const loaded = TYPES.filter((t) => picked[t]).map((t) => LABEL[t]).join(' / ');
+      setLog(`${label} を読み込みました(${loaded})`, 'ok');
+
+      // スマホ(縦並び)ではプレビューまで自動スクロール
+      if (window.matchMedia('(max-width: 800px)').matches) {
+        els.preview.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    } catch (err) {
+      setLog(`${label} の読み込みに失敗しました: ${err && err.message ? err.message : 'エラー'}`, 'error');
+    } finally {
+      sampleBusy = false;
+      sampleEls.root.classList.remove('is-busy');
+      card.classList.remove('is-loading');
+    }
+  }
+
+  sampleEls.refresh.addEventListener('click', () => refreshSamples(true));
+
+  // ============================================================
   //  初期化
   // ============================================================
   async function init() {
     showTab('html');
     renderAll();
+    refreshSamples(false);
     const restored = await loadProject();
     renderAll();
     showTab(activeTab);
