@@ -583,6 +583,22 @@ button, label { font-family: inherit; }
   .preview__stage { height: 70vh; min-height: 380px; }
 }
 
+/* ---------- zip asset info ---------- */
+.asset-info {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(94, 200, 216, 0.35);
+  background: rgba(94, 200, 216, 0.08);
+  color: var(--css);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.asset-info[hidden] { display: none; }
+
 /* ---------- sample games ---------- */
 .samples {
   grid-column: 1 / -1;

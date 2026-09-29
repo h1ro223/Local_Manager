@@ -50,8 +50,8 @@
     <section class="side" aria-label="ファイル読み込み">
 
       <label class="bulk" for="input-bulk">
-        <span class="bulk__title">3ファイルをまとめて選択</span>
-        <span class="bulk__sub">拡張子で自動振り分け / PCはドラッグ&amp;ドロップも可</span>
+        <span class="bulk__title">3ファイル or zipを選択</span>
+        <span class="bulk__sub">拡張子で自動振り分け / zipは画像・音声・フォントも読み込み / PCはドラッグ&amp;ドロップも可</span>
       </label>
       <input type="file" id="input-bulk" class="file-input" multiple>
 
@@ -88,6 +88,8 @@
         <button type="button" class="slot__clear" id="clear-js" aria-label="JSを外す" hidden>&times;</button>
       </div>
 
+      <p class="asset-info" id="assetInfo" hidden></p>
+
       <div class="actions">
         <button type="button" class="btn btn--primary" id="runBtn" disabled>実行する</button>
         <button type="button" class="btn btn--sub" id="exportBtn" disabled>1ファイルに書き出し</button>
@@ -117,6 +119,7 @@
           title="プレビュー"
           sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock allow-downloads"
           allow="fullscreen; autoplay; clipboard-write"
+          allowfullscreen
         ></iframe>
         <div class="preview__empty" id="previewEmpty">HTMLを読み込むとここに表示されます</div>
       </div>
