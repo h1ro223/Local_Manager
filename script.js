@@ -1387,16 +1387,36 @@
 
   const isFull = () => els.preview.classList.contains('is-full');
 
+  // セーフエリア(ノッチ・ホームバー)の幅を測る
+  let safeProbe = null;
+  function getSafeInsets() {
+    if (!safeProbe) {
+      safeProbe = document.createElement('div');
+      safeProbe.setAttribute('aria-hidden', 'true');
+      safeProbe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;' +
+        'padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);';
+      document.body.appendChild(safeProbe);
+    }
+    const cs = getComputedStyle(safeProbe);
+    return {
+      top: parseFloat(cs.paddingTop) || 0,
+      right: parseFloat(cs.paddingRight) || 0,
+      bottom: parseFloat(cs.paddingBottom) || 0,
+      left: parseFloat(cs.paddingLeft) || 0,
+    };
+  }
+
   // ノッチ等を避けた「置ける範囲」
   function handleArea() {
     const pRect = els.preview.getBoundingClientRect();
     const sRect = els.previewFrame.getBoundingClientRect();
+    const ins = isFull() ? getSafeInsets() : { top: 0, right: 0, bottom: 0, left: 0 };
     const size = floatHandle.offsetWidth || 38;
     const margin = 6;
-    const minX = sRect.left - pRect.left + margin;
-    const minY = sRect.top - pRect.top + margin;
-    const maxX = Math.max(minX, sRect.right - pRect.left - size - margin);
-    const maxY = Math.max(minY, sRect.bottom - pRect.top - size - margin);
+    const minX = sRect.left - pRect.left + ins.left + margin;
+    const minY = sRect.top - pRect.top + ins.top + margin;
+    const maxX = Math.max(minX, sRect.right - pRect.left - ins.right - size - margin);
+    const maxY = Math.max(minY, sRect.bottom - pRect.top - ins.bottom - size - margin);
     return { minX, minY, maxX, maxY };
   }
 
@@ -1440,6 +1460,33 @@
   }
 
   els.fullBtn.addEventListener('click', () => setFull(!isFull()));
+
+  // 全画面時の表示倍率(押すたびに 100 → 90 → 80 → 70 → 100…)
+  const zoomBtn = $('zoomBtn');
+  const ZOOM_KEY = 'lc2_fs_zoom';
+  const ZOOM_LEVELS = [1, 0.9, 0.8, 0.7];
+  let fsZoom = 0.9;
+
+  try {
+    const savedZoom = Number(localStorage.getItem(ZOOM_KEY));
+    if (ZOOM_LEVELS.includes(savedZoom)) fsZoom = savedZoom;
+  } catch (_) { /* 何もしない */ }
+
+  function applyZoom() {
+    els.preview.style.setProperty('--fs-zoom', String(fsZoom));
+    zoomBtn.textContent = `表示 ${Math.round(fsZoom * 100)}%`;
+    requestAnimationFrame(applyHandlePos);
+  }
+
+  zoomBtn.addEventListener('click', () => {
+    const i = ZOOM_LEVELS.indexOf(fsZoom);
+    fsZoom = ZOOM_LEVELS[(i + 1) % ZOOM_LEVELS.length];
+    try { localStorage.setItem(ZOOM_KEY, String(fsZoom)); } catch (_) { /* 何もしない */ }
+    applyZoom();
+    restartBarTimer();
+  });
+
+  applyZoom();
 
   // バーを触っている間は自動で隠れないようにする
   previewBar.addEventListener('pointerdown', () => {
