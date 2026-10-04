@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>BATTLE ROYALE 24 | made by hiro</title>
+<meta name="description" content="24人バトルロイヤル・シューティングゲーム。最後の1人まで生き残れ! made by hiro/ヒロ">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<!-- ゲーム画面 -->
+<canvas id="game"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="topbar">
+    <div class="tb-box"><span class="tb-ico">👥</span><span id="aliveNum">24</span></div>
+    <div id="zoneMsg" class="tb-box zone-safe">待機中</div>
+    <div class="tb-box"><span class="tb-ico">💀</span><span id="killNum">0</span></div>
+  </div>
+
+  <div id="mapWrap">
+    <canvas id="minimap" width="300" height="300"></canvas>
+  </div>
+  <div id="killfeed"></div>
+
+  <div id="bottomHud">
+    <div id="healPanel">
+      <div class="heal-item" id="hpBandage"><span class="hi-ico">🩹</span><span class="hi-num" id="bandageNum">0</span></div>
+      <div class="heal-item" id="hpMedkit"><span class="hi-ico">💊</span><span class="hi-num" id="medkitNum">0</span></div>
+    </div>
+    <div id="healthWrap">
+      <div id="armorBar"><div id="armorFill"></div></div>
+      <div id="hpBar"><div id="hpFill"></div><span id="hpText">100</span></div>
+      <div id="healCast" class="hidden"><div id="healCastFill"></div><span id="healCastLabel">回復中...</span></div>
+    </div>
+    <div id="weaponPanel">
+      <div class="wslot" id="wslot0"><span class="ws-key">1</span><span class="ws-name">素手</span><span class="ws-mag"></span></div>
+      <div class="wslot" id="wslot1"><span class="ws-key">2</span><span class="ws-name">---</span><span class="ws-mag"></span></div>
+      <div id="ammoBox"><span id="ammoMag">-</span><span id="ammoSep">/</span><span id="ammoReserve">-</span></div>
+    </div>
+  </div>
+
+  <div id="prompt" class="hidden"></div>
+  <div id="spectateBar" class="hidden">観戦中: <span id="specName"></span></div>
+</div>
+
+<!-- タッチ操作UI -->
+<div id="touchUI" class="hidden">
+  <div id="stickL" class="stick"><div class="stick-knob"></div></div>
+  <div id="stickR" class="stick"><div class="stick-knob"></div></div>
+  <div id="touchBtns">
+    <button id="btnPick" class="tbtn hidden">✋</button>
+    <button id="btnHeal" class="tbtn">＋</button>
+    <button id="btnReload" class="tbtn">↻</button>
+    <button id="btnSwap" class="tbtn">⇄</button>
+  </div>
+</div>
+
+<!-- 被弾エフェクト -->
+<div id="vignette"></div>
+<!-- カウントダウン -->
+<div id="countdown" class="hidden"></div>
+
+<!-- メニュー画面 -->
+<div id="menu" class="screen">
+  <div class="menu-inner">
+    <p class="menu-eyebrow">LAST ONE STANDING</p>
+    <h1 class="menu-title">BATTLE<br>ROYALE<span class="mt-24">24</span></h1>
+    <p class="menu-desc">24人のバトルロイヤル。武器を拾い、縮小するゾーンから逃げ、<br class="pc-only">最後の1人まで生き残れ。</p>
+    <button id="btnPlay" class="big-btn">出撃する</button>
+    <div class="menu-help">
+      <div class="help-col">
+        <h3>🖥️ PC操作</h3>
+        <p>WASD:移動 / マウス:照準 / クリック:射撃<br>E:武器交換 / R:リロード / H:回復<br>1・2・Q・ホイール:武器切替</p>
+      </div>
+      <div class="help-col">
+        <h3>📱 スマホ操作</h3>
+        <p>左スティック:移動<br>右スティック:照準+射撃<br>ボタン:✋拾う ＋回復 ↻リロード ⇄切替</p>
+      </div>
+    </div>
+    <a class="credit" href="https://github.com/h1ro223" target="_blank" rel="noopener">made by hiro/ヒロ</a>
+  </div>
+</div>
+
+<!-- リザルト画面 -->
+<div id="result" class="screen hidden">
+  <div class="menu-inner">
+    <p id="resultBanner" class="result-banner">#2</p>
+    <h2 id="resultTitle" class="result-title">戦闘不能...</h2>
+    <div class="result-stats">
+      <div class="rs-item"><span class="rs-label">順位</span><span class="rs-val" id="rsRank">-</span></div>
+      <div class="rs-item"><span class="rs-label">キル</span><span class="rs-val" id="rsKills">-</span></div>
+      <div class="rs-item"><span class="rs-label">与ダメージ</span><span class="rs-val" id="rsDmg">-</span></div>
+      <div class="rs-item"><span class="rs-label">生存時間</span><span class="rs-val" id="rsTime">-</span></div>
+    </div>
+    <div class="result-btns">
+      <button id="btnSpectate" class="big-btn sub">観戦する</button>
+      <button id="btnRetry" class="big-btn">もう一度出撃</button>
+    </div>
+    <a class="credit" href="https://github.com/h1ro223" target="_blank" rel="noopener">made by hiro/ヒロ</a>
+  </div>
+</div>
+
+<script src="./script.js"></script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+/* ホップヒーロー  made by hiro/ヒロ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{
+  width:100%;height:100%;overflow:hidden;
+  background:#05060f;
+  -webkit-user-select:none;user-select:none;
+  -webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:none;
+  overscroll-behavior:none;
+  font-family:"DotGothic16","Hiragino Kaku Gothic ProN",sans-serif;
+}
+#app{
+  position:fixed;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at center,#141836 0%,#05060f 75%);
+}
+body.portrait #app{align-items:flex-start;padding-top:calc(env(safe-area-inset-top) + 9vh)}
+#game{
+  display:block;
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+  box-shadow:0 0 0 2px #1d2350,0 10px 40px rgba(0,0,0,.6);
+  border-radius:4px;
+  touch-action:none;
+}
+
+/* ---- タッチコントローラー ---- */
+#touch{
+  position:fixed;inset:0;display:none;z-index:5;touch-action:none;
+  --pa:.6;--ps:1;
+}
+body.touch #touch{display:block}
+/* 仮想スティック：左半分のどこを触ってもその場に出る */
+#stickBase{
+  position:absolute;pointer-events:none;
+  width:calc(104px * var(--ps));height:calc(104px * var(--ps));
+  transform:translate(-50%,-50%);border-radius:50%;
+  border:2px solid rgba(255,255,255,.55);
+  background:radial-gradient(circle,rgba(255,255,255,.04) 0%,rgba(255,255,255,.14) 100%);
+  opacity:calc(var(--pa) * .9);
+  transition:opacity .12s;
+}
+#stickBase.idle{
+  left:calc(70px * var(--ps) + 18px + env(safe-area-inset-left));
+  top:calc(100% - 70px * var(--ps) - 16px - env(safe-area-inset-bottom));
+  opacity:calc(var(--pa) * .4);
+  border-style:dashed;
+}
+#stickBase.on{opacity:var(--pa)}
+#stickKnob{
+  position:absolute;left:50%;top:50%;
+  width:calc(46px * var(--ps));height:calc(46px * var(--ps));
+  transform:translate(-50%,-50%);border-radius:50%;
+  background:rgba(255,255,255,.4);border:2px solid rgba(255,255,255,.8);
+  box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+#stickKnob.dash{background:rgba(255,176,46,.65);border-color:#ffe14d}
+/* ボタン（右半分はタッチ位置から近いボタンが反応） */
+.btn{
+  position:absolute;pointer-events:none;border-radius:50%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:"Press Start 2P",monospace;color:#fff;
+  font-size:calc(18px * var(--ps));
+  border:2px solid rgba(255,255,255,.6);
+  opacity:var(--pa);
+  transition:transform .05s,filter .05s;
+}
+.btn small{font-family:"DotGothic16",sans-serif;font-size:calc(9px * var(--ps));margin-top:4px;opacity:.9;white-space:nowrap;letter-spacing:0}
+#btnA{
+  width:calc(80px * var(--ps));height:calc(80px * var(--ps));
+  right:calc(16px + env(safe-area-inset-right));
+  bottom:calc(58px * var(--ps) + 14px + env(safe-area-inset-bottom));
+  background:rgba(238,58,82,.45);
+}
+#btnB{
+  width:calc(68px * var(--ps));height:calc(68px * var(--ps));
+  right:calc(86px * var(--ps) + 16px + env(safe-area-inset-right));
+  bottom:calc(12px + env(safe-area-inset-bottom));
+  background:rgba(37,185,169,.42);
+}
+.btn.on{transform:scale(.9);filter:brightness(1.6);opacity:calc(var(--pa) + .25)}
+#btnP{
+  width:44px;height:32px;border-radius:10px;font-size:10px;
+  right:calc(10px + env(safe-area-inset-right));
+  top:calc(env(safe-area-inset-top) + 15vh);
+  background:rgba(10,12,34,.45);border-color:rgba(255,255,255,.45);
+}
+#btnP.on{transform:scale(.9)}
+
+/* ---- 縦向き案内 ---- */
+#rotate{
+  display:none;position:fixed;left:50%;transform:translateX(-50%);
+  top:calc(env(safe-area-inset-top) + 2vh);
+  color:#ffe14d;font-size:13px;padding:4px 12px;border-radius:20px;
+  background:rgba(0,0,0,.45);z-index:4;pointer-events:none;
+}
+body.touch.portrait #rotate{display:block}
+
+/* ---- クレジット ---- */
+#credit{
+  position:fixed;z-index:6;
+  top:calc(6px + env(safe-area-inset-top));
+  right:calc(8px + env(safe-area-inset-right));
+  font-family:"DotGothic16",sans-serif;font-size:13px;
+  color:#fff;text-decoration:none;
+  padding:4px 10px;border-radius:14px;
+  background:rgba(10,12,30,.55);border:1px solid rgba(255,255,255,.25);
+  -webkit-touch-callout:default;
+}
+#credit:hover{background:rgba(37,185,169,.6)}
+body.ingame #credit{display:none}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#05060f">
+<title>ホップヒーロー ～七色の星と浮遊大陸～ | made by hiro/ヒロ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="game" width="400" height="240"></canvas>
+</div>
+
+<!-- スマホ用タッチコントローラー（左半分：仮想スティック／右半分：ボタン） -->
+<div id="touch">
+  <div id="stickBase" class="idle"><div id="stickKnob"></div></div>
+  <div class="btn" id="btnB">B<small>ダッシュ・炎</small></div>
+  <div class="btn" id="btnA">A<small>ジャンプ</small></div>
+  <div class="btn small" id="btnP">II</div>
+</div>
+
+<div id="rotate">よこ向きがおすすめ！</div>
+
+<a id="credit" href="https://github.com/h1ro223" target="_blank" rel="noopener">made by hiro/ヒロ</a>
+
+<script src="./script.js"></script>
+</body>
+</html>

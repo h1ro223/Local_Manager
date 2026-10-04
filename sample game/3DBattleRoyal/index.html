@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1b211c">
+<meta name="format-detection" content="telephone=no">
+<title>LAST LANDING ～100人の孤島戦線～</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body data-mode="title">
+<canvas id="gl"></canvas>
+
+<!-- スコープの黒枠：ゲーム画面のすぐ上、ボタンやHUDより下に置く -->
+<div id="scopeOverlay"><div class="lens"><i class="h"></i><i class="v"></i><i class="c"></i></div></div>
+
+<!-- ===== HUD ===== -->
+<div id="hud" class="hidden">
+  <div id="dmgVignette"></div>
+  <div id="zoneTint"></div>
+
+  <canvas id="compass"></canvas>
+
+  <div id="topRight">
+    <div id="mmWrap"><canvas id="minimap"></canvas></div>
+    <div id="stats"><span>生存 <b id="aliveCount">100</b></span><span>キル <b id="killCount">0</b></span></div>
+    <div id="zoneInfo"></div>
+    <div id="netInfo"></div>
+  </div>
+
+  <div id="killfeed"></div>
+  <div id="centerMsg"></div>
+
+  <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="d"></i></div>
+  <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+  <div id="dmgDirs"></div>
+  <div id="cues"></div>
+  <div id="prompt"></div>
+  <div id="lootList"></div>
+
+  <div id="progress">
+    <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" class="bg"/><circle id="progressArc" cx="50" cy="50" r="44" class="fg"/></svg>
+    <span id="progressLabel"></span>
+  </div>
+
+  <div id="airHud">
+    <b id="altText"></b><span id="airSpeed"></span>
+    <p id="airHint"></p>
+  </div>
+
+  <div id="vehHud">
+    <b id="vehSpeed">0</b><small>km/h</small>
+    <div class="vbar"><i id="vehHpFill"></i></div>
+  </div>
+
+  <div id="bottom">
+    <div id="ammoBox"><b id="magCount">素手</b><span id="reserveCount"></span><small id="fireMode"></small></div>
+    <div id="vitals">
+      <div id="armorRow">
+        <div id="helmIcon" class="armor none">
+          <svg viewBox="0 0 24 24"><path d="M3 15c0-5 4-9 9-9s9 4 9 9v2H3z" /><rect x="2" y="16" width="20" height="2.5" rx="1"/></svg>
+          <span class="lv">ヘルメ−</span><span class="bar"><i></i></span>
+        </div>
+        <div id="vestIcon" class="armor none">
+          <svg viewBox="0 0 24 24"><path d="M7 3h3l2 3 2-3h3l3 4-2 3v11H6V10L4 7z"/></svg>
+          <span class="lv">ベスト−</span><span class="bar"><i></i></span>
+        </div>
+      </div>
+      <div id="boostBar"><i id="boostFill"></i></div>
+      <div id="hpBar"><i id="hpFill"></i></div>
+    </div>
+  </div>
+
+  <div id="slots">
+    <div class="slot empty" id="slot0"><span class="k">1</span><span class="n">空き</span><span class="a"></span></div>
+    <div class="slot empty" id="slot1"><span class="k">2</span><span class="n">空き</span><span class="a"></span></div>
+    <div class="slot empty" id="slot2"><span class="k">3</span><span class="n">ハンドガン</span><span class="a"></span></div>
+  </div>
+
+  <div id="healBar">
+    <button data-heal="bandage"><i class="hb1"></i><span>包帯</span><em>0</em><kbd>4</kbd></button>
+    <button data-heal="firstaid"><i class="hb2"></i><span>救急</span><em>0</em><kbd>5</kbd></button>
+    <button data-heal="medkit"><i class="hb3"></i><span>医療</span><em>0</em><kbd>6</kbd></button>
+    <button data-heal="drink"><i class="hb4"></i><span>ドリンク</span><em>0</em><kbd>7</kbd></button>
+  </div>
+
+  <div id="fps" class="hidden"></div>
+</div>
+
+<!-- ===== タッチ操作 ===== -->
+<div id="touch" class="hidden">
+  <div id="dashZone"><span>ダッシュ</span></div>
+  <div id="joyBase"><div id="joyKnob"></div><span class="sp">ダッシュ</span></div>
+  <button class="tb" id="tbPause" data-act="pause" aria-label="ポーズ"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg></button>
+  <button class="tb" id="tbMap" data-act="map">地図</button>
+  <button class="tb" id="tbBag" data-act="bag">バッグ</button>
+  <button class="tb" id="tbView" data-act="view" aria-label="視点切替">FPS</button>
+  <button class="tb fire" id="tbFireL" data-act="fire" aria-label="射撃"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="none" stroke-width="2"/><circle cx="12" cy="12" r="1.6"/></svg></button>
+  <button class="tb fire big" id="tbFire" data-act="fire" aria-label="射撃"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="none" stroke-width="2"/><circle cx="12" cy="12" r="1.6"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke-width="2"/></svg></button>
+  <button class="tb" id="tbAds" data-act="ads">覗く</button>
+  <button class="tb" id="tbJump" data-act="jump">ジャンプ</button>
+  <button class="tb" id="tbCrouch" data-act="crouch">しゃがむ</button>
+  <button class="tb" id="tbReload" data-act="reload">リロード</button>
+  <button class="tb hidden" id="btnInteract" data-act="interact"><span></span></button>
+</div>
+
+<!-- ===== 大マップ ===== -->
+<div id="mapOverlay" class="overlay hidden">
+  <div class="mapFrame"><canvas id="bigmap"></canvas></div>
+  <div class="mapBar"><span id="mapInfo"></span><button id="btnMapClose" class="btn ghost">閉じる（M）</button></div>
+</div>
+
+<!-- ===== バッグ ===== -->
+<div id="invPanel" class="overlay hidden">
+  <div class="panel wide">
+    <header><h2>バッグ</h2><button id="btnInvClose" class="btn ghost">閉じる（Tab）</button></header>
+    <div id="invContent" class="scroll"></div>
+  </div>
+</div>
+
+<!-- ===== ポーズ ===== -->
+<div id="pauseMenu" class="overlay hidden">
+  <div class="panel">
+    <h2>一時停止中</h2>
+    <button id="btnResume" class="btn primary">戦場に戻る</button>
+    <button id="btnPauseSettings" class="btn">設定</button>
+    <button id="btnPauseHelp" class="btn">操作方法</button>
+    <button id="btnQuit" class="btn ghost">試合をやめてタイトルへ</button>
+  </div>
+</div>
+
+<!-- ===== 設定 ===== -->
+<div id="settings" class="overlay hidden top">
+  <div class="panel scroll">
+    <h2>設定</h2>
+    <label class="row"><span>画質</span>
+      <span class="seg" id="setQuality"><button data-q="0">低</button><button data-q="1">中</button><button data-q="2">高</button></span></label>
+    <p class="note">動作が重いときは「低」に。影は「高」でのみ描画されます。</p>
+    <label class="row"><span>操作方式</span>
+      <span class="seg" id="setControls"><button data-c="auto">自動</button><button data-c="touch">タッチ</button><button data-c="pc">PC</button></span></label>
+    <label class="row"><span>視点感度 <b id="setSensV"></b></span><input type="range" id="setSens" min="0.3" max="2.5" step="0.05"></label>
+    <label class="row"><span>覗き込み感度 <b id="setAdsV"></b></span><input type="range" id="setAds" min="0.3" max="1.5" step="0.05"></label>
+    <label class="row"><span>視野角 <b id="setFovV"></b></span><input type="range" id="setFov" min="65" max="100" step="1"></label>
+    <label class="row"><span>音量 <b id="setVolV"></b></span><input type="range" id="setVol" min="0" max="1" step="0.05"></label>
+    <label class="row check"><span>自動リロード<small>マガジンが空になったら予備弾で自動リロード</small></span><input type="checkbox" id="setAutoReload"></label>
+    <label class="row check"><span>自動取得<small>弾薬・回復・上位の防具を近づくだけで拾う</small></span><input type="checkbox" id="setAutoPick"></label>
+    <label class="row check"><span>オートダッシュ（スマホ）<small>スティックの上に出る○まで指を動かすとダッシュし続ける</small></span><input type="checkbox" id="setAutoDash"></label>
+    <label class="row check"><span>FPSを表示</span><input type="checkbox" id="setFps"></label>
+    <button id="btnLayout" class="btn">ボタン配置を編集（スマホ）</button>
+    <button id="btnSettingsClose" class="btn primary">決定</button>
+  </div>
+</div>
+
+<!-- ===== ボタン配置の編集 ===== -->
+<div id="layoutEditor" class="hidden">
+  <div class="layBar">
+    <b id="layName">動かしたい部品をドラッグ</b>
+    <label>大きさ<input type="range" id="laySize" min="0.6" max="1.6" step="0.05" value="1"></label>
+    <label>濃さ<input type="range" id="layOpa" min="0.25" max="1" step="0.05" value="1"></label>
+    <button id="layHide" class="mini" disabled>非表示にする</button>
+    <button id="layFlip" class="mini">バーの位置を変える</button>
+    <button id="layReset" class="mini">初期配置に戻す</button>
+    <button id="layDone" class="btn primary">保存して戻る</button>
+  </div>
+</div>
+
+<!-- ===== 操作方法 ===== -->
+<div id="help" class="overlay hidden top">
+  <div class="panel scroll wide">
+    <h2>操作方法</h2>
+    <div class="helpGrid">
+      <section>
+        <h3>PC</h3>
+        <dl>
+          <dt>WASD</dt><dd>移動（Shiftでダッシュ）</dd>
+          <dt>マウス</dt><dd>視点（画面クリックで操作開始）。マウス固定が使えない環境（他のサイトの中で動かした時など）では、ドラッグで視点、右クリックで覗き込み</dd>
+          <dt>左クリック</dt><dd>射撃</dd>
+          <dt>右クリック</dt><dd>覗き込み（押しっぱなし／クリック切替）</dd>
+          <dt>Shift（覗き込み中）</dt><dd>息を止めてスコープの揺れを抑える</dd>
+          <dt>Space</dt><dd>ジャンプ／輸送機から降下／パラシュート</dd>
+          <dt>C・Ctrl</dt><dd>しゃがむ</dd>
+          <dt>Q・E</dt><dd>左右にのぞき込む（リーン）</dd>
+          <dt>R</dt><dd>リロード</dd>
+          <dt>F</dt><dd>拾う／乗車・降車</dd>
+          <dt>1・2・3・X</dt><dd>武器の切替／素手（ホイールでも切替）</dd>
+          <dt>B</dt><dd>フルオート・単発の切替</dd>
+          <dt>V</dt><dd>一人称（FPS）・三人称（TPS）の切替</dd>
+          <dt>4〜7</dt><dd>包帯・救急キット・医療キット・ドリンク</dd>
+          <dt>M／Tab</dt><dd>地図／バッグ</dd>
+          <dt>Esc</dt><dd>一時停止</dd>
+        </dl>
+      </section>
+      <section>
+        <h3>スマホ</h3>
+        <dl>
+          <dt>左側</dt><dd>どこでも触れるとスティック</dd>
+          <dt>オートダッシュ</dt><dd>スティックの上の○まで指を動かすとダッシュ固定。もう一度スティックに触れると解除</dd>
+          <dt>ダッシュ中にしゃがむ</dt><dd>しゃがみ歩きに切替。もう一度ダッシュ操作で解除</dd>
+          <dt>右側</dt><dd>ドラッグで視点</dd>
+          <dt>射撃ボタン</dt><dd>押したままドラッグで狙いを調整</dd>
+          <dt>覗く</dt><dd>覗き込みの切替（TPSでも覗き込み中は一人称）</dd>
+          <dt>FPS／TPSボタン</dt><dd>視点の切替</dd>
+          <dt>中央下の黄色ボタン</dt><dd>降下・開傘・拾う・乗車など、その場の行動</dd>
+          <dt>武器・回復アイコン</dt><dd>タップで切替／使用</dd>
+          <dt>近くの物資リスト</dt><dd>タップで拾う</dd>
+          <dt>ミニマップ</dt><dd>タップで地図</dd>
+          <dt>ボタン配置</dt><dd>設定の「ボタン配置を編集」から自由に移動・拡大縮小</dd>
+        </dl>
+      </section>
+      <section class="span">
+        <h3>ルール</h3>
+        <p>輸送機から島へ降下し、物資を集めて最後の1人を目指します。青い壁の外では体力が減り続け、時間とともに安全地帯は狭くなります。弾は重力で落ち、距離が離れるほど届くまでに時間がかかります。弾薬・回復・上位の防具は近づくと自動で拾います。</p>
+      </section>
+    </div>
+    <button id="btnHelpClose" class="btn primary">閉じる</button>
+  </div>
+</div>
+
+<!-- ===== リザルト ===== -->
+<div id="result" class="overlay hidden">
+  <div class="resBox">
+    <div class="rank"><b id="resRank">#1</b><span id="resTotal">/ 100</span></div>
+    <h2 id="resTitle"></h2>
+    <p id="resKiller"></p>
+    <div class="resStats">
+      <div><b id="resKills">0</b><span>キル</span></div>
+      <div><b id="resDmg">0</b><span>与ダメージ</span></div>
+      <div><b id="resTime">0:00</b><span>生存時間</span></div>
+    </div>
+    <div class="resBtns">
+      <button id="btnAgain" class="btn primary">もう一度出撃</button>
+      <button id="btnToTitle" class="btn ghost">タイトルへ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== タイトル ===== -->
+<div id="title" class="overlay hidden">
+  <div class="titleBox">
+    <h1><span class="l1">LAST</span><span class="l2">LANDING</span></h1>
+    <p class="sub">～100人の孤島戦線～</p>
+    <dl class="manifest">
+      <div><dt>降下人数</dt><dd>100</dd></div>
+      <div><dt>島の広さ</dt><dd>6km四方</dd></div>
+      <div><dt>拠点</dt><dd>13か所</dd></div>
+    </dl>
+    <div class="menu">
+      <button id="btnStart" class="btn primary">出撃する</button>
+      <button id="btnOnline" class="btn">友達とオンライン</button>
+      <button id="btnSettings" class="btn">設定</button>
+      <button id="btnHelp" class="btn">操作方法</button>
+    </div>
+  </div>
+  <a class="credit" href="https://github.com/h1ro223" target="_blank" rel="noopener">made by hiro / ヒロ<small>github.com/h1ro223</small></a>
+</div>
+
+<!-- ===== オンライン(ロビー) ===== -->
+<div id="lobby" class="overlay hidden">
+  <div class="panel scroll">
+    <header><h2>友達とオンライン</h2><button id="btnLobbyClose" class="btn ghost">戻る</button></header>
+    <div id="lobbyStart">
+      <label class="row"><span>名前</span><input type="text" id="netName" maxlength="12" autocomplete="off" placeholder="名前（12文字まで）"></label>
+      <button id="btnHost" class="btn primary">ルームを作る</button>
+      <div class="joinRow">
+        <input type="text" id="netCode" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ルームコード">
+        <button id="btnJoin" class="btn">参加する</button>
+      </div>
+      <p class="note">最大8人まで。空いた枠はBotが入って、全部で100人で戦います。ホストの端末が試合を動かすので、ホストは通信が安定した端末がおすすめです。</p>
+    </div>
+    <div id="lobbyRoom" class="hidden">
+      <div class="roomCode"><small>ルームコード</small><b id="roomCode">-----</b><button id="btnCopyCode" class="mini">コピー</button></div>
+      <ul id="roomList"></ul>
+      <label class="row check"><span>チーム戦<small>友達同士は味方（攻撃が当たらない）。Botを全員倒せばチームの勝利</small></span><input type="checkbox" id="netTeam" checked></label>
+      <button id="btnNetStart" class="btn primary hidden">試合開始</button>
+      <button id="btnNetLeave" class="btn ghost">ルームを抜ける</button>
+    </div>
+    <p id="netStatus" class="note"></p>
+  </div>
+</div>
+
+<!-- ===== ローディング ===== -->
+<div id="loading" class="overlay">
+  <div class="loadBox">
+    <h1><span class="l1">LAST</span><span class="l2">LANDING</span></h1>
+    <div class="loadTrack"><i id="loadBar"></i></div>
+    <p id="loadText">準備中…</p>
+  </div>
+  <a class="credit" href="https://github.com/h1ro223" target="_blank" rel="noopener">made by hiro / ヒロ<small>github.com/h1ro223</small></a>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script src="./script.js"></script>
+</body>
+</html>
