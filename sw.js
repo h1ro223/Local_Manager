@@ -11,6 +11,7 @@
 const VFS_DB_NAME = 'lc-vfs';
 const VFS_DB_VERSION = 1;
 const VFS_SEGMENT = '__vfs__';
+const META_KEY = '\u0000meta'; // script.jsと共通(フォルダ読み込み時の元URLなど)
 
 const MIME = {
   html: 'text/html', htm: 'text/html', xhtml: 'application/xhtml+xml',
@@ -111,6 +112,16 @@ async function lookup(path) {
   }
 }
 
+async function readMeta() {
+  try {
+    const db = await openDB();
+    const rec = await getFrom(db, 'main', META_KEY);
+    return (rec && rec.meta) || {};
+  } catch (_) {
+    return {};
+  }
+}
+
 // ------------------------------------------------------------
 //  ユーティリティ
 // ------------------------------------------------------------
@@ -153,6 +164,37 @@ function injectBridge(html) {
   return tag + html;
 }
 
+// 保存されていないファイルは、元のフォルダ(GitHub Pages)から直接読む
+async function fromNetwork(request, path) {
+  const meta = await readMeta();
+  if (!meta.remoteBase) return null;
+  let base;
+  try { base = new URL(meta.remoteBase); } catch (_) { return null; }
+  if (base.origin !== self.location.origin) return null;
+
+  const url = new URL(path.split('/').map(encodeURIComponent).join('/'), base).href;
+  const headers = {};
+  const range = request.headers.get('Range');
+  if (range) headers.Range = range;
+
+  let res;
+  try {
+    res = await fetch(url, { headers, cache: 'no-cache' });
+  } catch (_) {
+    return null;
+  }
+  if (!res.ok) return null;
+
+  if (isHtmlPath(path)) {
+    const html = injectBridge(await res.text());
+    return new Response(request.method === 'HEAD' ? null : html, {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+    });
+  }
+  return res;
+}
+
 function textResponse(status, message) {
   return new Response(message, {
     status,
@@ -170,6 +212,8 @@ async function serve(request, rest) {
   path = path.split('/').map(safeDecode).join('/');
   if (path === '' || path.endsWith('/')) path += 'index.html';
 
+  if (path === META_KEY) return textResponse(404, 'LOCAL CARTRIDGE: not found');
+
   let record;
   try {
     record = await lookup(path);
@@ -177,6 +221,8 @@ async function serve(request, rest) {
     return textResponse(500, `LOCAL CARTRIDGE: 保存領域を読めませんでした (${err && err.message ? err.message : err})`);
   }
   if (!record) {
+    const remote = await fromNetwork(request, path);
+    if (remote) return remote;
     return textResponse(404, `LOCAL CARTRIDGE: ファイルが見つかりません: ${path}`);
   }
 

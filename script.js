@@ -22,8 +22,10 @@
     code: { html: '', css: '', js: '' },
     names: { html: '', css: '', js: '' },
     edited: { html: false, css: false, js: false },
-    paths: { html: '', css: '', js: '' }, // zipモード時のzip内パス
+    paths: { html: '', css: '', js: '' }, // zip/フォルダモード時のパス
     zipName: '',
+    sourceKind: 'zip', // 'zip' = zipファイル / 'dir' = GitHub上のフォルダ
+    remoteBase: '', // フォルダ読み込み時の元URL(取り損ねたファイルはここから直接読む)
     assetSummary: null,
     savedAt: 0,
   };
@@ -238,10 +240,14 @@
       }
     }
 
-    const writeMain = (files) => run(['main'], 'readwrite', (tx) => {
+    // sw.jsと共通のキー(ファイルパスとして絶対に使われない値)
+    const META_KEY = '\u0000meta';
+
+    const writeMain = (files, meta) => run(['main'], 'readwrite', (tx) => {
       const store = tx.objectStore('main');
       store.clear();
       files.forEach((f) => store.put({ data: f.data }, f.path));
+      store.put({ meta: meta || {} }, META_KEY);
     });
 
     const replaceAssets = (files) => run(['assets'], 'readwrite', (tx) => {
@@ -455,7 +461,8 @@
     if (sum.kinds.font) kinds.push(`フォント${sum.kinds.font}`);
     if (sum.kinds.other) kinds.push(`その他${sum.kinds.other}`);
     const detail = kinds.length ? `(${kinds.join('・')})` : '';
-    els.assetInfo.textContent = `${state.zipName || 'zip'}.zip のアセット ${sum.count}ファイル / ${formatSize(sum.bytes)}${detail}`;
+    const source = state.sourceKind === 'dir' ? `${state.zipName}/ フォルダ` : `${state.zipName || 'zip'}.zip`;
+    els.assetInfo.textContent = `${source} のアセット ${sum.count}ファイル / ${formatSize(sum.bytes)}${detail}`;
     els.assetInfo.hidden = false;
   }
 
@@ -514,6 +521,8 @@
       edited: { ...state.edited },
       paths: { ...state.paths },
       zipName: state.zipName,
+      sourceKind: state.sourceKind,
+      remoteBase: state.remoteBase,
       assetSummary: state.assetSummary,
       savedAt: state.savedAt,
     });
@@ -572,6 +581,8 @@
       state.paths[t] = (state.mode === 'zip' && data.paths && data.paths[t]) || '';
     });
     state.zipName = state.mode === 'zip' ? (data.zipName || '') : '';
+    state.sourceKind = data.sourceKind === 'dir' ? 'dir' : 'zip';
+    state.remoteBase = state.mode === 'zip' ? (data.remoteBase || '') : '';
     state.assetSummary = state.mode === 'zip' ? (data.assetSummary || null) : null;
     state.savedAt = Number(data.savedAt) || 0;
 
@@ -600,29 +611,47 @@
     state.mode = 'files';
     state.paths = { html: '', css: '', js: '' };
     state.zipName = '';
+    state.sourceKind = 'zip';
+    state.remoteBase = '';
     state.assetSummary = null;
     try { await VFS.clearAssets(); } catch (_) { /* 何もしない */ }
     renderAll();
   }
 
   // ============================================================
-  //  zipの読み込み(画像・音声・フォント等もすべて取り込む)
+  //  パッケージ(zip / フォルダ)の取り込み
+  //  画像・音声・フォントなどもすべて仮想サーバーに保存する
   // ============================================================
-  async function loadZipBuffer(buffer, zipName) {
-    const JSZip = await loadJSZip();
-    const zip = await JSZip.loadAsync(buffer);
+  function decodeText(buffer) {
+    return stripBom(new TextDecoder('utf-8').decode(buffer));
+  }
 
-    const entries = [];
-    zip.forEach((rawPath, entry) => {
-      if (entry.dir) return;
-      const path = rawPath.replace(/\\/g, '/');
-      if (/(^|\/)__MACOSX\//.test(path) || /(^|\/)\.[^/]*$/.test(path)) return;
-      entries.push({ path, entry });
+  // 同時に通信する数を制限しながら処理する
+  async function runPool(items, limit, worker) {
+    let index = 0;
+    const count = Math.max(1, Math.min(limit, items.length));
+    const runners = Array.from({ length: count }, async () => {
+      while (index < items.length) {
+        const i = index;
+        index += 1;
+        await worker(items[i], i);
+      }
     });
+    await Promise.all(runners);
+  }
+
+  /**
+   * entries: [{ path, read: () => Promise<ArrayBuffer> }]
+   * opts   : { name, kind: 'zip' | 'dir', remoteBase }
+   */
+  async function loadPackage(entriesIn, opts) {
+    const entries = entriesIn
+      .map((e) => ({ path: String(e.path || '').replace(/\\/g, '/'), read: e.read }))
+      .filter((e) => e.path && !/(^|\/)__MACOSX\//.test(e.path) && !/(^|\/)\.[^/]*$/.test(e.path));
 
     // 起点になるHTML(index.html優先 / 浅い階層優先)
     const htmls = entries.filter((e) => detectType({ name: e.path, type: '' }) === 'html');
-    if (!htmls.length) throw new Error('zipの中にHTMLファイルが見つかりません');
+    if (!htmls.length) throw new Error('HTMLファイルが見つかりません');
     const htmlScore = (p) => (basename(p) === 'index.html' ? 0 : 100) + p.split('/').length;
     htmls.sort((a, b) => htmlScore(a.path) - htmlScore(b.path) || a.path.length - b.path.length);
 
@@ -630,10 +659,10 @@
     const root = entryFull.includes('/') ? entryFull.slice(0, entryFull.lastIndexOf('/') + 1) : '';
     const files = entries
       .filter((e) => e.path.startsWith(root))
-      .map((e) => ({ rel: e.path.slice(root.length), entry: e.entry }));
+      .map((e) => ({ rel: e.path.slice(root.length), read: e.read }));
     const byRel = new Map(files.map((f) => [f.rel, f]));
     const htmlRel = entryFull.slice(root.length);
-    const htmlText = stripBom(await htmls[0].entry.async('string'));
+    const htmlText = decodeText(await htmls[0].read());
 
     // HTMLが実際に読み込んでいるCSS/JSを「メインファイル」としてエディタに出す
     const doc = new DOMParser().parseFromString(htmlText, 'text/html');
@@ -660,8 +689,8 @@
     const cssRel = findRef(links, 'href', 'css') || (byRel.has(DEFAULT_NAME.css) ? DEFAULT_NAME.css : null);
     const jsRel = findRef(scripts, 'src', 'js') || (byRel.has(DEFAULT_NAME.js) ? DEFAULT_NAME.js : null);
 
-    const cssText = cssRel ? stripBom(await byRel.get(cssRel).entry.async('string')) : '';
-    const jsText = jsRel ? stripBom(await byRel.get(jsRel).entry.async('string')) : '';
+    const cssText = cssRel ? decodeText(await byRel.get(cssRel).read()) : '';
+    const jsText = jsRel ? decodeText(await byRel.get(jsRel).read()) : '';
 
     // それ以外はすべてアセットとして保存
     const mainSet = new Set([htmlRel, cssRel, jsRel].filter(Boolean));
@@ -669,7 +698,7 @@
     const summary = { count: 0, bytes: 0, kinds: { image: 0, audio: 0, font: 0, other: 0 } };
     for (const f of files) {
       if (mainSet.has(f.rel)) continue;
-      const data = await f.entry.async('arraybuffer');
+      const data = await f.read();
       assets.push({ path: f.rel, data });
       summary.count += 1;
       summary.bytes += data.byteLength;
@@ -680,7 +709,9 @@
     await VFS.replaceAssets(assets);
 
     state.mode = 'zip';
-    state.zipName = zipName;
+    state.sourceKind = opts.kind === 'dir' ? 'dir' : 'zip';
+    state.remoteBase = opts.remoteBase || '';
+    state.zipName = opts.name;
     state.assetSummary = summary;
     state.paths = { html: htmlRel, css: cssRel || '', js: jsRel || '' };
     state.code = { html: htmlText, css: cssText, js: jsText };
@@ -697,24 +728,113 @@
     return summary;
   }
 
-  // zip読み込みの共通処理(サンプル・手動アップロード共通)
-  async function importZip(label, zipName, getBuffer, hooks) {
+  // zipを読み込む
+  async function loadZipBuffer(buffer, zipName) {
+    const JSZip = await loadJSZip();
+    const zip = await JSZip.loadAsync(buffer);
+    const entries = [];
+    zip.forEach((path, entry) => {
+      if (!entry.dir) entries.push({ path, read: () => entry.async('arraybuffer') });
+    });
+    return loadPackage(entries, { name: zipName, kind: 'zip', remoteBase: '' });
+  }
+
+  // GitHub Pages上のフォルダを読み込む
+  function folderBaseUrl(name) {
+    return new URL(`./${encodeURIComponent(SAMPLE.dir)}/${encodeURIComponent(name)}/`, location.href).href;
+  }
+
+  async function fetchFolderFile(base, rel) {
+    const res = await fetch(base + encodePath(rel), { cache: 'no-cache' });
+    if (!res.ok) {
+      const err = new Error(`${rel} を取得できませんでした(HTTP ${res.status})`);
+      err.status = res.status;
+      throw err;
+    }
+    return res.arrayBuffer();
+  }
+
+  // ファイル一覧が取れない時用:index.htmlが読み込んでいるCSS/JSだけ探す
+  // (残りの画像・音声などは実行時に仮想サーバーがGitHub Pagesから直接読む)
+  async function discoverFolderFiles(base) {
+    let html;
+    try {
+      html = decodeText(await fetchFolderFile(base, 'index.html'));
+    } catch (_) {
+      const e = new Error('index.htmlが見つかりません');
+      e.code = 'NO_INDEX';
+      throw e;
+    }
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const list = ['index.html'];
+    const add = (ref) => {
+      if (!isLocalRef(ref)) return;
+      try {
+        const u = new URL(ref, 'https://vfs.invalid/');
+        const rel = u.pathname.slice(1).split('/').map(safeDecode).join('/');
+        if (rel && !list.includes(rel)) list.push(rel);
+      } catch (_) { /* 何もしない */ }
+    };
+    doc.querySelectorAll('link[href]').forEach((el) => {
+      if (/(^|\s)stylesheet(\s|$)/i.test(el.getAttribute('rel') || '')) add(el.getAttribute('href'));
+    });
+    doc.querySelectorAll('script[src]').forEach((el) => add(el.getAttribute('src')));
+    return list;
+  }
+
+  async function loadFolder(name, files, onProgress) {
+    const base = folderBaseUrl(name);
+    const list = files && files.length ? files.slice() : await discoverFolderFiles(base);
+    const buffers = new Map();
+    const failed = [];
+    let done = 0;
+
+    await runPool(list, 6, async (rel) => {
+      try {
+        buffers.set(rel, await fetchFolderFile(base, rel));
+      } catch (_) {
+        failed.push(rel);
+      }
+      done += 1;
+      if (onProgress) onProgress(done, list.length);
+    });
+
+    const entries = list
+      .filter((rel) => buffers.has(rel))
+      .map((rel) => ({ path: rel, read: async () => buffers.get(rel) }));
+    if (!entries.length) {
+      const e = new Error('フォルダ内のファイルを取得できませんでした(GitHub Pagesへの反映待ちの可能性があります)');
+      e.code = 'NO_INDEX';
+      throw e;
+    }
+
+    const summary = await loadPackage(entries, { name, kind: 'dir', remoteBase: base });
+    summary.failed = failed;
+    return summary;
+  }
+
+  // 読み込みの共通処理(サンプル・zipアップロード共通)
+  async function importPackage(label, loader, hooks) {
     if (zipBusy) {
-      setLog('別のzipを読み込み中です。少し待ってください。', 'warn');
+      setLog('別のファイルを読み込み中です。少し待ってください。', 'warn');
       return false;
     }
-    if (hasEdits() && !window.confirm('エディタで編集した内容があります。zipの内容で置き換えてよろしいですか?')) {
+    if (hasEdits() && !window.confirm('エディタで編集した内容があります。読み込む内容で置き換えてよろしいですか?')) {
       return false;
     }
     zipBusy = true;
     if (hooks && hooks.start) hooks.start();
     setLog(`${label} を読み込み中...`);
     try {
-      const buffer = await getBuffer();
-      const summary = await loadZipBuffer(buffer, zipName);
+      const summary = await loader((done, total) => setLog(`${label} を読み込み中... ${done}/${total}`));
       document.querySelectorAll('.sample-card.is-current').forEach((el) => el.classList.remove('is-current'));
       if (hooks && hooks.success) hooks.success();
-      setLog(`${label} を読み込みました(アセット${summary.count}ファイル / ${formatSize(summary.bytes)})`, 'ok');
+      const message = `${label} を読み込みました(アセット${summary.count}ファイル / ${formatSize(summary.bytes)})`;
+      if (summary.failed && summary.failed.length) {
+        setLog(`${message} 取得できなかった${summary.failed.length}ファイルは、実行時にサーバーから直接読み込みます`, 'warn');
+      } else {
+        setLog(message, 'ok');
+      }
       await runPreview();
       if (window.matchMedia('(max-width: 800px)').matches) {
         els.preview.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -741,7 +861,7 @@
     if (zips.length) {
       const zipFile = zips[0];
       const zipName = zipFile.name.replace(/\.zip$/i, '');
-      await importZip(zipFile.name, zipName, () => readBuffer(zipFile));
+      await importPackage(zipFile.name, async () => loadZipBuffer(await readBuffer(zipFile), zipName));
       if (files.length > 1) {
         els.logText.textContent += '(zip以外・2個目以降のzipは無視しました)';
       }
@@ -1085,7 +1205,7 @@
     if (reg) {
       try {
         const built = buildRunFiles();
-        await VFS.writeMain(built.files);
+        await VFS.writeMain(built.files, { remoteBase: state.mode === 'zip' ? state.remoteBase : '' });
         if (token !== runToken) return;
         built.notes.forEach((n) => addConsole('warn', n));
         revokeBlobs();
@@ -1167,6 +1287,8 @@
     });
     state.mode = 'files';
     state.zipName = '';
+    state.sourceKind = 'zip';
+    state.remoteBase = '';
     state.assetSummary = null;
     state.savedAt = 0;
     clearTimeout(saveTimer);
@@ -1632,7 +1754,8 @@
   });
 
   // ============================================================
-  //  サンプルゲーム(GitHubの sample game フォルダのzipを読み込む)
+  //  サンプルゲーム(GitHubの sample game フォルダから読み込む)
+  //  フォルダ・zipのどちらにも対応(同名ならフォルダ優先)
   // ============================================================
   const SAMPLE = {
     owner: 'h1ro223',
@@ -1650,7 +1773,7 @@
       Survivors: 'サバイバー',
       Tycoon: '経営シミュ',
     },
-    cacheKey: 'lc2_sample_list',
+    cacheKey: 'lc2_sample_list_v2',
     cacheMs: 60 * 60 * 1000, // 1時間はAPIを叩かずキャッシュを使う
   };
 
@@ -1664,32 +1787,65 @@
   function readSampleCache() {
     try {
       const raw = JSON.parse(localStorage.getItem(SAMPLE.cacheKey) || 'null');
-      if (raw && Array.isArray(raw.list) && raw.list.length) return raw;
+      if (raw && Array.isArray(raw.items) && raw.items.length) return raw;
     } catch (_) { /* 何もしない */ }
     return null;
   }
 
+  // リポジトリ全体のファイル一覧を1回で取得して、sample game の中身を組み立てる
   async function fetchSampleList(force) {
     const cached = readSampleCache();
     if (!force && cached && Date.now() - (cached.at || 0) < SAMPLE.cacheMs) {
-      return { list: cached.list, source: 'cache' };
+      return { items: cached.items, source: 'cache' };
     }
     try {
-      const url = `https://api.github.com/repos/${SAMPLE.owner}/${SAMPLE.repo}/contents/${encodeURIComponent(SAMPLE.dir)}?ref=${SAMPLE.branch}`;
+      const url = `https://api.github.com/repos/${SAMPLE.owner}/${SAMPLE.repo}/git/trees/${SAMPLE.branch}?recursive=1`;
       const res = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (!Array.isArray(data)) throw new Error('形式エラー');
-      const list = data
-        .filter((f) => f && f.type === 'file' && /\.zip$/i.test(f.name))
-        .map((f) => f.name.replace(/\.zip$/i, ''))
-        .sort((a, b) => a.localeCompare(b));
-      if (!list.length) throw new Error('zipなし');
-      try { localStorage.setItem(SAMPLE.cacheKey, JSON.stringify({ list, at: Date.now() })); } catch (_) { /* 何もしない */ }
-      return { list, source: 'api' };
+      if (!data || !Array.isArray(data.tree)) throw new Error('形式エラー');
+
+      const prefix = `${SAMPLE.dir}/`;
+      const map = new Map();
+      const ensureDir = (name) => {
+        let item = map.get(name);
+        if (!item || item.kind !== 'dir') {
+          item = { name, kind: 'dir', files: [] };
+          map.set(name, item);
+        }
+        return item;
+      };
+
+      data.tree.forEach((node) => {
+        if (!node || typeof node.path !== 'string' || !node.path.startsWith(prefix)) return;
+        const rest = node.path.slice(prefix.length);
+        if (!rest) return;
+        const slash = rest.indexOf('/');
+        if (slash === -1) {
+          if (node.type === 'tree') {
+            ensureDir(rest);
+          } else if (node.type === 'blob' && /\.zip$/i.test(rest)) {
+            const name = rest.replace(/\.zip$/i, '');
+            if (!map.has(name)) map.set(name, { name, kind: 'zip' });
+          }
+          return;
+        }
+        if (node.type !== 'blob') return;
+        ensureDir(rest.slice(0, slash)).files.push(rest.slice(slash + 1));
+      });
+
+      const items = Array.from(map.values())
+        .filter((item) => item.kind === 'zip' || item.files.some((f) => /\.html?$/i.test(f)))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      if (!items.length) throw new Error('サンプルなし');
+      try { localStorage.setItem(SAMPLE.cacheKey, JSON.stringify({ items, at: Date.now() })); } catch (_) { /* 何もしない */ }
+      return { items, source: 'api' };
     } catch (_) {
-      if (cached) return { list: cached.list, source: 'stale' };
-      return { list: SAMPLE.fallback.slice(), source: 'fallback' };
+      if (cached) return { items: cached.items, source: 'stale' };
+      return {
+        items: SAMPLE.fallback.map((name) => ({ name, kind: 'dir', files: null })),
+        source: 'fallback',
+      };
     }
   }
 
@@ -1697,43 +1853,55 @@
     return `./${encodeURIComponent(SAMPLE.dir)}/${encodeURIComponent(name)}.zip`;
   }
 
-  function renderSamples(list, source) {
+  async function fetchSampleZip(name) {
+    const res = await fetch(sampleZipUrl(name), { cache: 'no-cache' });
+    if (!res.ok) throw new Error(`zipを取得できませんでした(HTTP ${res.status})`);
+    return res.arrayBuffer();
+  }
+
+  function renderSamples(items, source) {
     sampleEls.list.innerHTML = '';
-    if (!list.length) {
+    if (!items.length) {
       const p = document.createElement('p');
       p.className = 'samples__empty';
       p.textContent = 'サンプルがありません';
       sampleEls.list.appendChild(p);
       return;
     }
-    list.forEach((name) => {
+    items.forEach((item) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'sample-card';
       btn.setAttribute('role', 'listitem');
-      btn.dataset.name = name;
-      if (state.mode === 'zip' && state.zipName === name) btn.classList.add('is-current');
+      btn.dataset.name = item.name;
+      if (state.mode === 'zip' && state.zipName === item.name) btn.classList.add('is-current');
 
       const badge = document.createElement('span');
       badge.className = 'sample-card__badge';
-      badge.textContent = name.slice(0, 2).toUpperCase();
+      badge.textContent = item.name.slice(0, 2).toUpperCase();
 
       const text = document.createElement('span');
       text.className = 'sample-card__text';
       const title = document.createElement('span');
       title.className = 'sample-card__title';
-      title.textContent = SAMPLE.labels[name] || name;
+      title.textContent = SAMPLE.labels[item.name] || item.name;
       const file = document.createElement('span');
       file.className = 'sample-card__file';
-      file.textContent = `${name}.zip`;
+      if (item.kind === 'zip') {
+        file.textContent = `${item.name}.zip`;
+      } else if (Array.isArray(item.files)) {
+        file.textContent = `${item.name}/ ${item.files.length}ファイル`;
+      } else {
+        file.textContent = `${item.name}/`;
+      }
       text.append(title, file);
 
       btn.append(badge, text);
-      btn.addEventListener('click', () => loadSample(name, btn));
+      btn.addEventListener('click', () => loadSample(item, btn));
       sampleEls.list.appendChild(btn);
     });
 
-    const count = `${list.length}本`;
+    const count = `${items.length}本`;
     sampleEls.status.classList.toggle('is-warn', source === 'fallback' || source === 'stale');
     if (source === 'fallback') {
       sampleEls.status.textContent = `${count}(一覧の取得に失敗したため固定リストを表示)`;
@@ -1748,17 +1916,27 @@
     sampleEls.refresh.disabled = true;
     sampleEls.status.classList.remove('is-warn');
     sampleEls.status.textContent = '一覧を読み込み中...';
-    const { list, source } = await fetchSampleList(force);
-    renderSamples(list, source);
+    const { items, source } = await fetchSampleList(force);
+    renderSamples(items, source);
     sampleEls.refresh.disabled = false;
   }
 
-  async function loadSample(name, card) {
-    const label = SAMPLE.labels[name] || name;
-    await importZip(`${label}(${name}.zip)`, name, async () => {
-      const res = await fetch(sampleZipUrl(name), { cache: 'no-cache' });
-      if (!res.ok) throw new Error(`zipを取得できませんでした(HTTP ${res.status})`);
-      return res.arrayBuffer();
+  async function loadSample(item, card) {
+    const label = SAMPLE.labels[item.name] || item.name;
+    const source = item.kind === 'zip' ? `${item.name}.zip` : `${item.name}/`;
+    await importPackage(`${label}(${source})`, async (progress) => {
+      if (item.kind === 'zip') {
+        return loadZipBuffer(await fetchSampleZip(item.name), item.name);
+      }
+      try {
+        return await loadFolder(item.name, item.files, progress);
+      } catch (err) {
+        // 一覧が取れていない時だけ、同名のzipも試す
+        if (err && err.code === 'NO_INDEX' && !item.files) {
+          return loadZipBuffer(await fetchSampleZip(item.name), item.name);
+        }
+        throw err;
+      }
     }, {
       start: () => {
         sampleEls.root.classList.add('is-busy');
@@ -1789,7 +1967,8 @@
     showTab(activeTab);
     refreshSamples(false);
     if (restored) {
-      setLog(state.mode === 'zip' ? `前回の内容(${state.zipName}.zip)を復元しました。` : '前回の内容を復元しました。', 'ok');
+      const source = state.sourceKind === 'dir' ? `${state.zipName}/` : `${state.zipName}.zip`;
+      setLog(state.mode === 'zip' ? `前回の内容(${source})を復元しました。` : '前回の内容を復元しました。', 'ok');
       if (state.code.html.trim()) runPreview();
     }
   }
