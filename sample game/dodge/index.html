@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="theme-color" content="#06070e">
+  <title>BLAZE DODGE 🔥 | made by hiro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- ===== ゲーム画面 ===== -->
+    <div id="stage">
+      <div id="game">
+        <canvas id="cv"></canvas>
+
+        <div id="hud">
+          <div id="hud-btns">
+            <button id="btn-pause" class="hbtn" type="button" aria-label="ポーズ">❚❚</button>
+            <button id="btn-sound" class="hbtn" type="button" aria-label="サウンド切り替え">🔊</button>
+          </div>
+          <div id="hud-watch">
+            <svg class="clock" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#fff" stroke="#1b1d27" stroke-width="2.2"/><path d="M12 6.2V12l4 2.3" stroke="#1b1d27" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>
+            <span id="watch">0.00</span>
+          </div>
+          <div id="hud-remain">
+            <svg class="clock" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#fff" stroke="#1b1d27" stroke-width="2.2"/><path d="M12 6.2V12l4 2.3" stroke="#1b1d27" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>
+            <span id="remain">050</span>
+          </div>
+        </div>
+
+        <div id="banner"></div>
+      </div>
+    </div>
+
+    <!-- ===== スマホ用コントローラー ===== -->
+    <div id="controls" aria-hidden="true">
+      <div id="pad-left">
+        <div id="dpad">
+          <span class="dp dp-l">◀</span>
+          <span class="dp dp-r">▶</span>
+          <span class="dp dp-u">▲</span>
+          <span class="dp dp-d">▼</span>
+          <div id="dpad-knob"></div>
+        </div>
+      </div>
+      <div id="pad-right">
+        <button class="cbtn" id="b-spin" data-k="spin" type="button">SPIN</button>
+        <button class="cbtn" id="b-jump" data-k="jump" type="button">JUMP</button>
+      </div>
+    </div>
+
+    <footer id="credit">
+      <a href="https://github.com/h1ro223" target="_blank" rel="noopener">made by hiro / ヒロ</a>
+    </footer>
+
+    <!-- ===== タイトル ===== -->
+    <div id="ov-title" class="overlay show">
+      <div class="card scroll">
+        <h1 class="logo">
+          <span class="logo-row">
+            <span class="en">BLAZE DODGE</span>
+            <button id="logo-mark" class="logo-mark" type="button" aria-label="ステージを切り替える">🔥</button>
+          </span>
+          <span class="jp">～ 灼熱の50秒 ～</span>
+        </h1>
+        <p class="mission">
+          足場はトゲの中に浮かぶ<b>安全ブロック1つだけ</b>。<br>
+          <span id="mission-enemy">右の高台から2体</span>のフレイムインプが火の玉を投げてくる。<br>
+          <b>50秒間</b>よけきればクリア！
+        </p>
+
+        <div class="modes">
+          <button class="mode-btn" data-mode="normal" type="button">
+            <span class="m-name">ノーマルモード</span>
+            <span class="m-sub">50秒よけきればクリア・メダルあり</span>
+            <span class="m-best" id="best-normal">まだ記録なし</span>
+          </button>
+          <button class="mode-btn" data-mode="endless" type="button">
+            <span class="m-name">エンドレスモード</span>
+            <span class="m-sub">∞ ミスするまで続く</span>
+            <span class="m-best" id="best-endless">まだ記録なし</span>
+          </button>
+          <button class="mode-btn hard" data-mode="hard" type="button">
+            <span class="m-name">ハードモード</span>
+            <span class="m-sub">∞ 15秒ごとにレベルアップ</span>
+            <span class="m-best" id="best-hard">まだ記録なし</span>
+          </button>
+        </div>
+        <div class="sub-btns">
+          <button id="btn-help" class="btn sub small" type="button">？ 操作方法</button>
+          <button id="btn-settings" class="btn sub small" type="button">⚙ 設定</button>
+        </div>
+        <a class="credit-in" href="https://github.com/h1ro223" target="_blank" rel="noopener">made by hiro / ヒロ</a>
+      </div>
+    </div>
+
+    <!-- ===== ポーズ ===== -->
+    <div id="ov-pause" class="overlay">
+      <div class="card scroll small">
+        <h2 class="ov-head">ポーズ中</h2>
+        <div class="btn-col">
+          <button id="btn-resume" class="btn" type="button">つづける</button>
+          <button id="btn-p-retry" class="btn sub" type="button">最初からやり直す</button>
+          <button id="btn-p-help" class="btn sub" type="button">？ 操作方法</button>
+          <button id="btn-p-settings" class="btn sub" type="button">⚙ 設定</button>
+          <button id="btn-p-title" class="btn sub" type="button">タイトルへ戻る</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 操作方法 ===== -->
+    <div id="ov-help" class="overlay">
+      <div class="card scroll">
+        <h2 class="ov-head">操作方法</h2>
+        <div class="tabs" role="tablist">
+          <button class="tab" data-tab="touch" type="button" role="tab">スマホ</button>
+          <button class="tab" data-tab="pc" type="button" role="tab">PC</button>
+          <button class="tab" data-tab="pad" type="button" role="tab">コントローラー</button>
+        </div>
+
+        <div class="howto tab-panel" data-panel="touch">
+          <table>
+            <tr><th>左パッド</th><td>左右にずらして移動。大きくずらすとダッシュ</td></tr>
+            <tr><th>左パッド（下）</th><td>地上でしゃがみ、空中でヒップドロップ</td></tr>
+            <tr><th>ヒップキャンセル</th><td>ヒップドロップで落ち始めたらパッドを上に。すぐ空中スピンが出せる</td></tr>
+            <tr><th>JUMP</th><td>ジャンプ（長押しで高く跳ぶ）。空中で押すと空中スピン</td></tr>
+            <tr><th>SPIN</th><td>空中スピン（落下がゆっくりになる）。地上ならスピンジャンプ（着地までスピン・ヒップドロップ不可）</td></tr>
+            <tr><th>壁キック</th><td>壁に向かってパッドを倒しながら JUMP</td></tr>
+            <tr><th>❚❚</th><td>ポーズ</td></tr>
+          </table>
+          <p class="note">横画面だと画面いっぱいで遊べます。ボタンの大きさや位置は「設定」で変えられます。</p>
+        </div>
+
+        <div class="howto tab-panel" data-panel="pc" hidden>
+          <table>
+            <tr><th>移動</th><td><kbd>←</kbd><kbd>→</kbd> または <kbd>A</kbd><kbd>D</kbd></td></tr>
+            <tr><th>ダッシュ</th><td><kbd>Shift</kbd> か <kbd>X</kbd> を押しながら移動</td></tr>
+            <tr><th>ジャンプ</th><td><kbd>Space</kbd> <kbd>Z</kbd> <kbd>↑</kbd>（長押しで高く跳ぶ。空中で押すと空中スピン）</td></tr>
+            <tr><th>空中スピン</th><td><kbd>C</kbd>（落下がゆっくりになる。少し間をあければ何回でも。地上ならスピンジャンプ）</td></tr>
+            <tr><th>壁キック</th><td>壁に向かって押しながらジャンプ</td></tr>
+            <tr><th>しゃがみ</th><td>地上で <kbd>↓</kbd> か <kbd>S</kbd></td></tr>
+            <tr><th>ヒップドロップ</th><td>空中で <kbd>↓</kbd> か <kbd>S</kbd></td></tr>
+            <tr><th>ヒップキャンセル</th><td>ヒップドロップで落ち始めたら <kbd>↑</kbd> か <kbd>W</kbd>。すぐ空中スピンが出せる</td></tr>
+            <tr><th>ポーズ</th><td><kbd>Esc</kbd> か <kbd>P</kbd></td></tr>
+            <tr><th>決定</th><td><kbd>Enter</kbd>（前回のモードで開始・もう一度）</td></tr>
+          </table>
+        </div>
+
+        <div class="howto tab-panel" data-panel="pad" hidden>
+          <table>
+            <tr><th>移動</th><td>左スティック・十字キーの左右</td></tr>
+            <tr><th>ダッシュ</th><td>左スティックを大きく倒す</td></tr>
+            <tr><th>ジャンプ</th><td>A・B（長押しで高く跳ぶ。空中で押すと空中スピン）</td></tr>
+            <tr><th>空中スピン</th><td>X・Y・LB・RB・LT・RT（落下がゆっくりになる）</td></tr>
+            <tr><th>壁キック</th><td>壁に向かって倒しながらジャンプ</td></tr>
+            <tr><th>しゃがみ</th><td>地上で下（スティック・十字キー）</td></tr>
+            <tr><th>ヒップドロップ</th><td>空中で下（スティック・十字キー）</td></tr>
+            <tr><th>ヒップキャンセル</th><td>ヒップドロップで落ち始めたら上。すぐ空中スピンが出せる</td></tr>
+            <tr><th>ポーズ</th><td>スタート（＋）ボタン</td></tr>
+            <tr><th>決定</th><td>A・B</td></tr>
+          </table>
+          <p class="note">ボタン名はXbox配置での表記です（Aは下、Bは右のボタン）。Switch系のコントローラーは「設定」でA/B・X/Yを入れ替えられます。</p>
+        </div>
+
+        <div class="btn-col">
+          <button id="btn-help-back" class="btn" type="button">戻る</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 設定 ===== -->
+    <div id="ov-settings" class="overlay">
+      <div class="card scroll small">
+        <h2 class="ov-head">設定</h2>
+        <p id="set-note" class="set-note"></p>
+        <div class="set-wrap">
+        <div class="set-list">
+          <label class="set-row" for="set-pad">
+            <span class="set-label">パッドの大きさ</span>
+            <input type="range" id="set-pad" min="60" max="150" step="5">
+            <output id="out-pad">100%</output>
+          </label>
+          <label class="set-row" for="set-btn">
+            <span class="set-label">ボタンの大きさ</span>
+            <input type="range" id="set-btn" min="60" max="150" step="5">
+            <output id="out-btn">100%</output>
+          </label>
+          <label class="set-row" for="set-op">
+            <span class="set-label">不透明度</span>
+            <input type="range" id="set-op" min="30" max="100" step="5">
+            <output id="out-op">80%</output>
+          </label>
+          <button id="set-swap" class="set-row set-toggle" type="button" role="switch" aria-checked="false">
+            <span class="set-label">A/B・X/Y入れ替え</span>
+            <span class="set-sub">Switch系のコントローラー向け</span>
+            <span id="out-swap" class="toggle-pill">OFF</span>
+          </button>
+        </div>
+        <div class="btn-col">
+          <button id="btn-edit-pos" class="btn sub" type="button">ボタンの位置を調整する</button>
+          <button id="btn-set-reset" class="btn sub" type="button">ボタン設定を元に戻す</button>
+          <button id="btn-data-reset" class="btn danger" type="button">データを初期化</button>
+          <button id="btn-set-back" class="btn" type="button">戻る</button>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 位置調整中のバー ===== -->
+    <div id="edit-bar">
+      <p>パッドやボタンをドラッグして動かせます</p>
+      <div class="edit-actions">
+        <button id="btn-edit-reset" class="btn sub small" type="button">位置をリセット</button>
+        <button id="btn-edit-done" class="btn small" type="button">完了</button>
+      </div>
+    </div>
+
+    <!-- ===== リザルト ===== -->
+    <div id="ov-result" class="overlay">
+      <div class="card scroll small">
+        <p id="res-mode" class="res-mode"></p>
+        <h2 id="res-title" class="res-title">MISS…</h2>
+        <p class="res-time"><span id="res-time">0.00</span><small>秒</small></p>
+        <p id="res-medal" class="res-medal" hidden><span class="medal-dot big"></span><span id="res-medal-name"></span></p>
+        <p id="res-new" class="res-new" hidden>ベスト記録更新！</p>
+        <p id="res-unlock" class="res-unlock" hidden>🔓 ハードモード解放！</p>
+        <p id="res-msg" class="res-msg"></p>
+        <p class="best">ベスト記録：<span id="res-best">--</span></p>
+        <div class="btn-col">
+          <button id="btn-retry" class="btn" type="button">もう一度</button>
+          <button id="btn-r-title" class="btn sub" type="button">タイトルへ戻る</button>
+        </div>
+        <a class="credit-in" href="https://github.com/h1ro223" target="_blank" rel="noopener">made by hiro / ヒロ</a>
+      </div>
+    </div>
+
+  </div>
+  <script src="./script.js"></script>
+</body>
+</html>
