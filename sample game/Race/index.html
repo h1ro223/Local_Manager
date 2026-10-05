@@ -239,6 +239,10 @@
           <div class="opt"><span>オートアクセル<small>スマホ用</small></span><button class="btn tog" data-act="opt" data-opt="autoAccel">ON</button></div>
           <div class="opt"><span>ジャイロ操作<small>スマホ用</small></span><button class="btn tog" data-act="opt" data-opt="gyro">OFF</button></div>
           <div class="opt"><span>ふってトリック<small>スマホ用</small></span><button class="btn tog" data-act="opt" data-opt="motionJA">OFF</button></div>
+          <div class="opt"><span>A/B入れ替え<small>コントローラー</small></span><button class="btn tog" data-act="opt" data-opt="swapAB">OFF</button></div>
+          <div class="opt"><span>X/Y入れ替え<small>コントローラー</small></span><button class="btn tog" data-act="opt" data-opt="swapXY">OFF</button></div>
+          <div class="opt"><span>振動<small>コントローラー</small></span><button class="btn tog" data-act="opt" data-opt="rumble">ON</button></div>
+          <p id="opt-pad" class="note pad-name"></p>
         </div>
         <p id="opt-note" class="note"></p>
         <div class="btn-row">
@@ -265,7 +269,7 @@
           <div class="how-col">
             <h3>そうさ</h3>
             <table class="keys">
-              <tr><th></th><td>キーボード</td><td>スマホ</td><td>パッド</td></tr>
+              <tr><th></th><td>キーボード</td><td>スマホ</td><td>コントローラー</td></tr>
               <tr><th>ハンドル</th><td>← → / A D</td><td>左スティック</td><td>左スティック / 十字</td></tr>
               <tr><th>アクセル</th><td>↑ / W</td><td>オート（またはGAS）</td><td>A / RT</td></tr>
               <tr><th>ブレーキ・バック</th><td>↓ / S</td><td>BRAKE</td><td>B / LT</td></tr>
@@ -273,6 +277,7 @@
               <tr><th>アイテム</th><td>Space / E</td><td>ITEM</td><td>LB / X</td></tr>
               <tr><th>ポーズ</th><td>Esc / P</td><td>右上のボタン</td><td>START</td></tr>
             </table>
+            <p class="small">コントローラーはUSBかBluetoothでつないで、ボタンを押すと認識します。メニューはスティック/十字で選んでAで決定、Bでもどる。任天堂系コントローラーなどでボタンの位置が逆のときは、せっていの「A/B入れ替え」「X/Y入れ替え」を使ってね。スマホでコントローラーを使うと、画面のタッチボタンは自動で消えます（画面にさわると元に戻ります）。</p>
             <h3>テクニック</h3>
             <dl class="tech">
               <dt>ドリフト＆ミニターボ</dt><dd>ハンドルを切りながらドリフトボタンを押しっぱなし。火花が<span class="c1">青</span>→<span class="c2">オレンジ</span>→<span class="c3">むらさき</span>に変わったら離すと加速！内側にハンドルを切るとたまるのが速い。</dd>
@@ -356,6 +361,7 @@
     </section>
   </div>
 
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div id="loading" class="loading show"><div><p>LOADING</p><i></i></div></div>
 </div>
 <script src="./script.js"></script>

@@ -217,6 +217,16 @@ img, canvas { image-rendering: pixelated; image-rendering: crisp-edges; -webkit-
 .course-card.special.sel { box-shadow: inset 0 0 0 3px #fff3a0; }
 .btn:disabled { opacity: 0.6; cursor: default; }
 
+/* コントローラーのお知らせ */
+.toast {
+  position: absolute; left: 50%; top: calc(14px + var(--sat)); z-index: 50; transform: translate(-50%, -140%);
+  padding: 8px 16px; background: var(--ink); color: var(--cream); font-size: 14px; pointer-events: none;
+  box-shadow: 0 0 0 2px var(--cyan), 4px 4px 0 2px rgba(0, 0, 0, 0.4); transition: transform 0.25s steps(4); white-space: nowrap;
+}
+.toast.show { transform: translate(-50%, 0); }
+.pad-name { grid-column: 1 / -1; margin: 2px 0 0; font-size: 12px; }
+.opts { max-height: none; }
+
 /* オンライン */
 input[type="text"] {
   -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;

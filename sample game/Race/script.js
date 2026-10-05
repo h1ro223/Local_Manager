@@ -474,7 +474,7 @@ const Store = {
   data: null,
   defaults() {
     return {
-      settings: { bgm: 0.6, se: 0.8, quality: 'mid', shake: true, autoAccel: isTouchDevice, gyro: false, minimap: true, gyroSens: 1, motionJA: isTouchDevice, netName: '' },
+      settings: { bgm: 0.6, se: 0.8, quality: 'mid', shake: true, autoAccel: isTouchDevice, gyro: false, minimap: true, gyroSens: 1, motionJA: isTouchDevice, netName: '', swapAB: false, swapXY: false, rumble: true },
       records: {}, trophies: {}, unlock: { mirror: false }, lastChar: 0,
     };
   },
@@ -1035,46 +1035,85 @@ const Input = {
     this.gyro.steer = v;
     this.gyro.active = true;
   },
+  // コントローラー（標準配置）：A=アクセル B=ブレーキ X/LB=アイテム Y/RB=ドリフト RT/LT=アクセル/ブレーキ START=ポーズ
+  // 設定でA/B・X/Yを入れ替えできる（任天堂系コントローラー向け）
   pollPad() {
-    const P = this.pad;
-    let gp = null;
-    try {
-      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-      for (let i = 0; i < pads.length; i++) { if (pads[i] && pads[i].connected) { gp = pads[i]; break; } }
-    } catch (e) { gp = null; }
-    const N = P.nav;
+    const P = this.pad, N = P.nav;
+    let pads = [];
+    try { pads = navigator.getGamepads ? Array.from(navigator.getGamepads()) : []; } catch (e) { pads = []; }
+    const live = pads.filter((g) => g && g.connected);
+    let gp = live.find((g) => g.index === this.padIdx) || null;
+    // 最後に操作したコントローラーを使う
+    for (const g of live) {
+      const any = g.buttons.some((bt) => bt && bt.pressed) || g.axes.some((v) => Math.abs(v) > 0.5);
+      if (any) { gp = g; if (this.padIdx !== g.index) this.padIdx = g.index; break; }
+    }
+    if (!gp) gp = live[0] || null;
     if (!gp) {
       P.connected = false; P.steer = 0; P.accel = P.brake = P.drift = P.item = false;
       N.up = N.down = N.left = N.right = N.a = N.b = N.start = false;
+      this.gp = null;
       return;
     }
-    P.connected = true;
-    const b = (i) => !!(gp.buttons[i] && gp.buttons[i].pressed);
+    P.connected = true; this.gp = gp; P.name = gp.id;
+    const st = S();
+    const A = st.swapAB ? 1 : 0, B = st.swapAB ? 0 : 1, X = st.swapXY ? 3 : 2, Y = st.swapXY ? 2 : 3;
+    const btn = (i) => gp.buttons[i];
+    const b = (i) => !!(btn(i) && btn(i).pressed);
+    const tv = (i) => (btn(i) ? Math.max(btn(i).value || 0, btn(i).pressed ? 1 : 0) : 0);
     const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
-    let st = Math.abs(ax) > 0.15 ? (ax - sign(ax) * 0.15) / 0.85 : 0;
-    if (b(14)) st = -1;
-    if (b(15)) st = 1;
-    P.steer = clamp(st, -1, 1);
-    P.accel = b(0) || b(7);
-    P.brake = b(1) || b(6);
-    P.drift = b(5) || b(3);
-    P.item = b(4) || b(2);
+    let sv = Math.abs(ax) > 0.15 ? (ax - sign(ax) * 0.15) / 0.85 : 0;
+    if (b(14)) sv = -1;
+    if (b(15)) sv = 1;
+    P.steer = clamp(sv, -1, 1);
+    P.accel = b(A) || tv(7) > 0.25;
+    P.brake = b(B) || tv(6) > 0.25;
+    P.drift = b(5) || b(Y);
+    P.item = b(4) || b(X);
     N.up = b(12) || ay < -0.6; N.down = b(13) || ay > 0.6;
     N.left = b(14) || ax < -0.6; N.right = b(15) || ax > 0.6;
-    N.a = b(0); N.b = b(1); N.start = b(9);
+    N.a = b(A); N.b = b(B); N.start = b(9); N.select = b(8);
+    // コントローラーを触ったら、スマホのタッチボタンを隠す
+    const active = gp.buttons.some((bt) => bt && bt.pressed) || Math.abs(ax) > 0.5 || Math.abs(ay) > 0.5;
+    if (active) { this.padUsedAt = performance.now(); if (this.usedTouch) this.setTouchMode(false); }
   },
-  padEdges() {
+  // 振動（対応しているコントローラーのみ）
+  rumble(strong, weak, ms) {
+    if (!S().rumble || !this.gp || performance.now() - (this.padUsedAt || 0) > 15000) return;
+    const va = this.gp.vibrationActuator;
+    if (!va || !va.playEffect) return;
+    try { va.playEffect('dual-rumble', { duration: ms, strongMagnitude: strong, weakMagnitude: weak }); } catch (e) { /* noop */ }
+  },
+  rumbleFor(name) {
+    const R = { hit: [0.9, 0.6, 320], bump: [0.45, 0.3, 110], kartbump: [0.3, 0.3, 90], land: [0.35, 0.2, 90], mini: [0.15, 0.35, 120], boost: [0.2, 0.4, 160], nitro: [0.25, 0.45, 200], cannon: [1, 0.8, 420], fall: [0.6, 0.4, 260], explode: [0.7, 0.5, 220], pop: [0.6, 0.3, 160], bumper: [0.5, 0.5, 140] }[name];
+    if (R) this.rumble(R[0], R[1], R[2]);
+  },
+  padEdges(dt) {
     const N = this.pad.nav, pv = this.padPrev, out = {};
     for (const k in N) { out[k] = N[k] && !pv[k]; pv[k] = N[k]; }
+    // 方向キーを押しっぱなしにするとカーソルが連続で動く
+    this.rep = this.rep || {};
+    for (const k of ['up', 'down', 'left', 'right']) {
+      if (!N[k]) { this.rep[k] = 0; continue; }
+      if (out[k]) { this.rep[k] = -0.38; continue; }
+      this.rep[k] += dt;
+      if (this.rep[k] >= 0.11) { this.rep[k] = 0; out[k] = true; }
+    }
     return out;
   },
   update(dt) {
     this.pollPad();
-    const e = this.padEdges();
-    if (e.start && Game.state === 'race') Game.togglePause();
+    // ボタン入れ替え直後は、押しているボタンを一度離すまで無視（押した瞬間に意味が変わって誤作動するのを防ぐ）
+    if (this.padLock) {
+      const N = this.pad.nav;
+      if (N.a || N.b || N.start) { for (const k in N) this.padPrev[k] = N[k]; } else this.padLock = false;
+    }
+    const e = this.padLock ? {} : this.padEdges(dt);
+    if ((e.start || e.select) && Game.state === 'race') Game.togglePause();
     else if (Game.state !== 'race' || Game.paused) {
       if (e.up) UI.nav('up'); if (e.down) UI.nav('down'); if (e.left) UI.nav('left'); if (e.right) UI.nav('right');
-      if (e.a) UI.activate(); if (e.b) UI.back();
+      if (e.a || (e.start && UI.cur === 'title')) UI.activate();
+      if (e.b) UI.back();
     }
     const target = (this.has(KEYS.right) ? 1 : 0) - (this.has(KEYS.left) ? 1 : 0);
     if (target === 0) this.kbSteer = Math.abs(this.kbSteer) < dt * 14 ? 0 : this.kbSteer - sign(this.kbSteer) * dt * 14;
@@ -3088,7 +3127,7 @@ class Kart {
   }
   speedMul() { return this.ai ? this.ai.speedMul : 1; }
   near() { const c = this.race.cam; return (this.x - c.x) ** 2 + (this.y - c.y) ** 2 < 420 * 420; }
-  sfx(name, opt) { if (this.isPlayer && !this.race.demo) AudioSys.sfx(name, opt); }
+  sfx(name, opt) { if (this.isPlayer && !this.race.demo) { AudioSys.sfx(name, opt); Input.rumbleFor(name); } }
   boost(t, mul) {
     this.boostT = Math.max(this.boostT, t);
     this.boostMul = mul;
@@ -5076,6 +5115,12 @@ const UI = {
     const els = this.focusables();
     if (!els.length) return;
     const a = document.activeElement;
+    if (a && a.type === 'range' && els.includes(a) && (dir === 'left' || dir === 'right')) {
+      if (dir === 'left') a.stepDown(); else a.stepUp();
+      a.dispatchEvent(new Event('input', { bubbles: true }));
+      a.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
     if (!els.includes(a)) { els[0].focus(); return; }
     const ra = a.getBoundingClientRect(), ax = ra.left + ra.width / 2, ay = ra.top + ra.height / 2;
     let best = null, bs = Infinity;
@@ -5256,6 +5301,12 @@ const UI = {
     Store.data.lastChar = this.charSel; Store.save();
     AudioSys.sfx('select');
     this.show(this.flow.mode === 'gp' ? 'cup' : this.flow.mode === 'battle' ? 'bstage' : 'course');
+  },
+  toast(msg) {
+    const t = $('#toast');
+    if (!t) return;
+    t.textContent = msg; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+    clearTimeout(this.toastT); this.toastT = setTimeout(() => t.classList.remove('show'), 2600);
   },
   /* --- オンライン --- */
   onOnline() {
@@ -5479,6 +5530,8 @@ const UI = {
   },
   onOptions() {
     const st = S();
+    const pn = $('#opt-pad');
+    if (pn) pn.textContent = Input.pad.connected ? `接続中：${String(Input.pad.name || '').replace(/\(.*?\)/g, '').trim().slice(0, 40) || 'コントローラー'}` : 'コントローラー：未接続（ボタンを押すと認識します）';
     $('#opt-bgm').value = Math.round(st.bgm * 100); $('#opt-bgm-v').textContent = Math.round(st.bgm * 100);
     $('#opt-se').value = Math.round(st.se * 100); $('#opt-se-v').textContent = Math.round(st.se * 100);
     $$('[data-act="opt"]').forEach((b) => this.optLabel(b));
@@ -5513,6 +5566,8 @@ const UI = {
       }
       st.motionJA = false;
     } else st[k] = !st[k];
+    if (k === 'swapAB' || k === 'swapXY') Input.padLock = true;
+    if (k === 'rumble' && st.rumble) Input.rumble(0.6, 0.6, 200);
     Store.save(); this.optLabel(b); AudioSys.sfx('cursor');
     Game.refreshTouchUI();
   },
@@ -6123,6 +6178,8 @@ function boot() {
   $('#screen').addEventListener('pointerdown', () => { if (Game.race && Game.race.phase === 'intro') Game.race.skipReq = true; });
   $('#btn-pause').addEventListener('click', (e) => { e.preventDefault(); Game.togglePause(); });
   window.addEventListener('pagehide', () => { if (Net.active()) Net.leave(true); });
+  window.addEventListener('gamepadconnected', (e) => { UI.toast(`コントローラーを認識しました`); if (UI.cur === 'options') UI.onOptions(); });
+  window.addEventListener('gamepaddisconnected', () => { UI.toast('コントローラーが外れました'); if (UI.cur === 'options') UI.onOptions(); if (Game.state === 'race' && !Game.paused && !(Game.race && Game.race.cfg.online)) Game.togglePause(); });
   setTimeout(() => {
     Gfx.build();
     UI.init();
