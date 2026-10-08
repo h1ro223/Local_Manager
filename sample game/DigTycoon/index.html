@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#120c1e">
+<title>ピクセルドリル999 〜地底999階への挑戦〜</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== タイトル ===== -->
+  <section id="scr-title" class="screen active">
+    <canvas id="title-bg" width="208" height="360"></canvas>
+    <div class="title-box">
+      <div class="logo">
+        <span class="l1">ピクセル</span>
+        <span class="l2">ドリル<b>999</b></span>
+      </div>
+      <p class="subtitle">〜 地底999階への挑戦 〜</p>
+      <div class="title-btns">
+        <button id="btn-continue" class="btn big primary" data-k="t-cont">つづきから</button>
+        <button id="btn-new" class="btn big" data-k="t-new">はじめから</button>
+        <button id="btn-title-set" class="btn" data-k="t-set">せってい</button>
+      </div>
+      <p class="title-hint">PC：矢印キー / WASD で移動・採掘<br>スマホ：十字キー ／ コントローラー対応</p>
+    </div>
+    <a class="credit" href="https://github.com/h1ro223" target="_blank" rel="noopener" data-k="t-credit">made by hiro / ヒロ</a>
+  </section>
+
+  <!-- ===== 地上キャンプ ===== -->
+  <section id="scr-camp" class="screen">
+    <header class="camp-head">
+      <canvas id="camp-banner" width="208" height="72"></canvas>
+      <div class="camp-info">
+        <div class="ci"><span class="ic ic-coin"></span><b id="c-coins">0</b></div>
+        <div class="ci">最深 <b id="c-deep">-</b></div>
+      </div>
+      <button id="btn-camp-set" class="btn icon" data-k="c-set" aria-label="せってい">⚙</button>
+    </header>
+    <nav class="tabs" id="tabs">
+      <button class="tab" data-tab="depart" data-k="tab-depart">出発</button>
+      <button class="tab" data-tab="forge" data-k="tab-forge">鍛冶</button>
+      <button class="tab" data-tab="equip" data-k="tab-equip">装備</button>
+      <button class="tab" data-tab="store" data-k="tab-store">倉庫</button>
+      <button class="tab" data-tab="shop" data-k="tab-shop">強化</button>
+      <button class="tab" data-tab="dex" data-k="tab-dex">図鑑</button>
+      <button class="tab" data-tab="rec" data-k="tab-rec">記録</button>
+    </nav>
+    <main class="tab-body" id="tab-body"></main>
+    <footer class="camp-foot">
+      <a class="credit-s" href="https://github.com/h1ro223" target="_blank" rel="noopener" data-k="c-credit">made by hiro / ヒロ</a>
+    </footer>
+  </section>
+
+  <!-- ===== 採掘 ===== -->
+  <section id="scr-dive" class="screen">
+    <div class="hud">
+      <div class="hud-floor"><b id="h-floor">地表</b><span id="h-biome"></span></div>
+      <div class="hud-mid">
+        <div class="ebar"><div id="h-ebar"></div><span id="h-etext"></span></div>
+        <div class="hud-row">
+          <span class="hb" id="h-bagbox"><span class="ic ic-bag"></span><b id="h-bag">0/0</b></span>
+          <span class="hb"><span class="ic ic-coin"></span><b id="h-coin">0</b></span>
+        </div>
+      </div>
+      <div class="hud-btns">
+        <button id="h-ret" class="btn sm" data-k="h-ret">帰還</button>
+        <button id="h-pause" class="btn sm" data-k="h-pause" aria-label="ポーズ">Ⅱ</button>
+      </div>
+    </div>
+    <div class="view" id="view">
+      <div class="stage" id="stage">
+        <canvas id="game" width="208" height="256"></canvas>
+        <div id="fx"></div>
+        <div id="banner"></div>
+        <div id="status"></div>
+      </div>
+    </div>
+    <div class="touch-ctrl" id="touch-ctrl">
+      <div class="dpad" id="dpad" data-dir="">
+        <div class="dp up"></div>
+        <div class="dp down"></div>
+        <div class="dp left"></div>
+        <div class="dp right"></div>
+        <div class="dp-c"></div>
+      </div>
+      <div class="tc-right">
+        <button id="tc-ret" class="round">帰還</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="modal-root"></div>
+<div id="toasts"></div>
+
+<script src="./script.js"></script>
+</body>
+</html>
