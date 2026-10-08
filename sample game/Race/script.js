@@ -474,7 +474,7 @@ const Store = {
   data: null,
   defaults() {
     return {
-      settings: { bgm: 0.6, se: 0.8, quality: 'mid', shake: true, autoAccel: isTouchDevice, gyro: false, minimap: true, gyroSens: 1, motionJA: isTouchDevice, netName: '', swapAB: false, swapXY: false, rumble: true },
+      settings: { bgm: 0.6, se: 0.8, quality: 'mid', shake: true, autoAccel: isTouchDevice, gyro: false, minimap: true, gyroSens: 1, motionJA: isTouchDevice, netName: '', netPublic: true, swapAB: false, swapXY: false, rumble: true },
       records: {}, trophies: {}, unlock: { mirror: false }, lastChar: 0,
     };
   },
@@ -5244,7 +5244,12 @@ const UI = {
       case 'resume': AudioSys.sfx('select'); Game.togglePause(); break;
       case 'restart': AudioSys.sfx('select'); Game.restart(); break;
       case 'quit': AudioSys.sfx('back'); if (Net.active()) Net.leave(true); Game.toMenu('main'); break;
-      case 'nethost': this.saveNetName(); AudioSys.sfx('select'); Net.host(); break;
+      case 'nethost': this.saveNetName(); AudioSys.sfx('select'); Net.host(S().netPublic !== false); break;
+      case 'netquick': this.saveNetName(); AudioSys.sfx('select'); Net.quick(); break;
+      case 'netpub': S().netPublic = S().netPublic === false; Store.save(); AudioSys.sfx('cursor'); this.updateNetPub(); break;
+      case 'netroom': this.saveNetName(); AudioSys.sfx('select'); Net.join(t.dataset.code); break;
+      case 'netrefresh': AudioSys.sfx('cursor'); this.roomsSig = ''; this.refreshRooms(); break;
+      case 'netcopy': this.copyInvite(); break;
       case 'netjoin': this.saveNetName(); AudioSys.sfx('select'); Net.join($('#net-code').value); break;
       case 'netchar': this.changeNetChar(+t.dataset.dir); break;
       case 'netleave': AudioSys.sfx('back'); Net.leave(); this.show('online'); break;
@@ -5321,6 +5326,88 @@ const UI = {
     Net.load();
     // オンライン画面を開いた時だけ、裏でサーバーを起こし始める（タイトルでは起こさない＝無料枠の節約）
     if (window.ServerWakeup) window.ServerWakeup.prewarm();
+    this.updateNetPub();
+    this.startRoomPoll();
+  },
+  updateNetPub() {
+    const pub = S().netPublic !== false;
+    const b = $('#net-pub');
+    if (b) { b.classList.toggle('on', pub); b.setAttribute('aria-pressed', String(pub)); }
+    const l = $('#net-pub-label');
+    if (l) l.textContent = pub ? '公開' : 'プライベート';
+    const d = $('#net-pub-desc');
+    if (d) d.textContent = pub ? '一覧にのせて、だれでも入れる' : '部屋番号か招待リンクで入る';
+  },
+  // オンライン画面にいる間だけ、公開ルーム一覧を自動で更新
+  startRoomPoll() {
+    clearInterval(this.roomPoll);
+    this.roomsSig = '';
+    this.roomsShown = false;
+    this.refreshRooms();
+    this.roomPoll = setInterval(() => {
+      if (this.cur !== 'online') { clearInterval(this.roomPoll); this.roomPoll = null; return; }
+      if (document.hidden || Net.active() || (window.ServerWakeup && window.ServerWakeup.isBusy())) return;
+      this.refreshRooms();
+    }, ROOM_POLL_MS);
+  },
+  async refreshRooms() {
+    const box = $('#net-rooms');
+    if (!box) return;
+    if (!Net.roomsUrl()) { box.innerHTML = '<p class="net-empty">この環境では部屋一覧を使えません。部屋番号で入ってね</p>'; return; }
+    if (this.roomsLoading) return;
+    this.roomsLoading = true;
+    if (!this.roomsShown) box.innerHTML = '<p class="net-empty">部屋をさがしています…</p>';
+    const rooms = await Net.fetchRooms();
+    this.roomsLoading = false;
+    if (this.cur !== 'online') return;
+    if (!rooms) {
+      if (!this.roomsShown) box.innerHTML = '<p class="net-empty">サーバーを起こしています…<br>少し待つと一覧が出ます</p>';
+      return;
+    }
+    this.renderRooms(rooms);
+  },
+  renderRooms(rooms) {
+    const box = $('#net-rooms');
+    if (!box) return;
+    this.roomsShown = true;
+    const sig = JSON.stringify(rooms.map((r) => [r.code, r.name, r.players, r.max, r.course, r.cls, r.status]));
+    if (sig === this.roomsSig) return; // 変化がなければ描き直さない（フォーカスが飛ばないように）
+    this.roomsSig = sig;
+    const act = document.activeElement;
+    const focusCode = act && box.contains(act) ? act.dataset.code : null;
+    if (!rooms.length) {
+      box.innerHTML = '<p class="net-empty">いま公開されている部屋はありません<br>「おまかせで入る」か「部屋をつくる」で待ってみよう</p>';
+    } else {
+      box.innerHTML = rooms.map((r) => {
+        const code = String(r.code), mx = (r.max | 0) || NET_MAX, pl = r.players | 0;
+        const racing = r.status === 'race', full = pl >= mx, off = racing || full;
+        const tag = racing ? '<em class="rs race">レース中</em>' : full ? '<em class="rs full">満員</em>' : '<em class="rs wait">待機中</em>';
+        const info = [r.course, r.cls].filter(Boolean).map(esc).join(' / ');
+        return `<button class="btn room-item${off ? ' off' : ''}" data-act="netroom" data-code="${esc(code)}"${off ? ' disabled' : ''}><span class="ri-name">${esc(r.name || 'ホスト')}<i>No.${esc(code)}</i></span><span class="ri-num">${pl}/${mx}</span>${tag}<span class="ri-info">${info}</span></button>`;
+      }).join('');
+    }
+    if (focusCode) {
+      const b = box.querySelector(`[data-code="${focusCode}"]:not([disabled])`) || $('#scr-online [data-act="netquick"]');
+      if (b) { try { b.focus({ preventScroll: true }); } catch (e) { b.focus(); } }
+    }
+  },
+  async copyInvite() {
+    if (!Net.code) return;
+    const url = Net.inviteUrl();
+    let ok = false;
+    try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(url); ok = true; } } catch (e) { ok = false; }
+    if (!ok) {
+      // iframe内などでクリップボードAPIが使えない時の予備
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;-webkit-user-select:text;user-select:text;';
+      document.body.appendChild(ta);
+      try { ta.select(); ta.setSelectionRange(0, url.length); ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      ta.remove();
+    }
+    AudioSys.sfx(ok ? 'select' : 'deny');
+    this.netToast(ok ? '招待リンクをコピーしたよ！友だちに送ってね' : `コピーできませんでした：${url}`);
   },
   saveNetName() {
     const v = ($('#net-name').value || '').trim().slice(0, 8);
@@ -5363,6 +5450,8 @@ const UI = {
   updateLobby() {
     if (!$('#lobby-players')) return;
     $('#lobby-code').textContent = Net.code || '----';
+    const kind = $('#lobby-kind');
+    if (kind) { kind.textContent = Net.isPublic ? '公開' : 'プライベート'; kind.className = 'room-kind ' + (Net.isPublic ? 'pub' : 'priv'); }
     $('#lobby-players').innerHTML = Net.players.map((p) => `<div class="lp${p.id === Net.myId ? ' me' : ''}"><img alt="" src="${Gfx.charIcon[p.ci]}"><span>${esc(p.name)}</span>${p.host ? '<em>HOST</em>' : ''}${p.id === Net.myId ? '<i>あなた</i>' : ''}</div>`).join('')
       + Array.from({ length: Math.max(0, 8 - Net.players.length) }, () => '<div class="lp empty"><span>あき</span></div>').join('');
     const st = Net.settings, cd = COURSES[st.course] || COURSES[0];
@@ -5375,7 +5464,7 @@ const UI = {
     $$('#lobby-settings .btn').forEach((b) => { b.disabled = !Net.isHost; });
     $('#lobby-start').style.display = Net.isHost ? '' : 'none';
     const note = $('#lobby-note');
-    if (note && !(Date.now() < +(note.dataset.until || 0))) note.textContent = Net.isHost ? '部屋コードを友だちに教えてね。そろったらスタート！' : 'ホストがスタートするのを待っています…';
+    if (note && !(Date.now() < +(note.dataset.until || 0))) note.textContent = Net.isHost ? (Net.isPublic ? '公開ルームとして一覧にのっています。そろったらスタート！' : '部屋番号か招待リンクを友だちに送ってね。そろったらスタート！') : 'ホストがスタートするのを待っています…';
     const mc = $('#lobby-mini');
     if (mc) { const g = mc.getContext('2d'); g.clearRect(0, 0, 128, 128); g.drawImage(getMiniTrack(st.course).miniCanvas, 0, 0); }
     this.drawNetChar();
@@ -5651,6 +5740,17 @@ const UI = {
 const NET_VER = 1;
 const NET_PREFIX = 'tpgp-room-';
 const NET_PATH = '/race'; // 共用サーバー上のこのゲームの部屋（wakeup.js / server.js と対応）
+const NET_MAX = 8; // 1部屋の最大人数
+const ROOM_POST_MS = 5000; // 公開ルームの情報をサーバーへ送る間隔
+const ROOM_POLL_MS = 4000; // オンライン画面で部屋一覧を更新する間隔
+// 招待リンクの飛び先。空ならこのページのURL（Local Manager など別ページから開かせたい時だけ書く）
+const INVITE_URL = '';
+// 掲示板の書き換え用の合言葉（部屋ごとにランダム）
+const randToken = () => {
+  const a = new Uint8Array(18);
+  try { crypto.getRandomValues(a); } catch (e) { for (let i = 0; i < a.length; i++) a[i] = (Math.random() * 256) | 0; }
+  return Array.from(a, (b) => (b % 36).toString(36)).join('') + Date.now().toString(36);
+};
 const PEERJS_URLS = [
   'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js',
   'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js',
@@ -5663,6 +5763,7 @@ const Net = {
   players: [], settings: { course: 0, cls: 1, laps: 3, cpu: 3, items: true },
   inRace: false, latest: [], loaded: new Set(), sendT: 0, wentGo: false, joined: false, leaving: false,
   lastSeen: new Map(), hostSeen: 0, hb: null, wakeTk: 0,
+  isPublic: false, board: null, boardSoon: 0, boardToken: '', boardPostAt: 0, quickActive: false, quickQueue: [],
   // 1秒ごとの生存確認。7秒返事がなければ切断とみなす（タブを閉じた時などは通知が来ないため）
   startHeartbeat() {
     clearInterval(this.hb);
@@ -5712,17 +5813,156 @@ const Net = {
       onCancel: () => this.setStatus('接続をキャンセルしたよ'),
     }).catch(() => false);
   },
+  // ---- 公開ルーム掲示板（共用サーバーの /race/rooms） ----
+  roomsUrl() { return window.ServerWakeup ? `${window.ServerWakeup.serverUrl}${NET_PATH}/rooms` : ''; },
+  async fetchRooms() {
+    const url = this.roomsUrl();
+    if (!url) return null;
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = setTimeout(() => { if (ctrl) ctrl.abort(); }, 8000);
+    try {
+      const res = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store', credentials: 'omit', signal: ctrl ? ctrl.signal : undefined });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || !Array.isArray(data.rooms)) return null;
+      return data.rooms.filter((r) => r && /^[0-9]{4}$/.test(String(r.code)));
+    } catch (e) {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  },
+  roomInfo(close) {
+    const st = this.settings, cd = COURSES[st.course] || COURSES[0], cl = CLASSES[st.cls] || CLASSES[0];
+    const hostP = this.players.find((p) => p.host) || this.players[0];
+    const info = { code: this.code, token: this.boardToken, v: NET_VER };
+    if (close) { info.close = true; return info; }
+    return Object.assign(info, { name: hostP ? hostP.name : 'ホスト', players: Math.max(1, this.players.length), max: NET_MAX, course: cd.name, cls: cl.name, status: this.inRace ? 'race' : 'wait' });
+  },
+  sendRoom(close) {
+    const url = this.roomsUrl();
+    if (!url || !this.code || !this.boardToken) return;
+    const body = JSON.stringify(this.roomInfo(close));
+    // text/plain で送るとプリフライトが要らない（サーバーは text/plain の JSON も読む）
+    if (close && navigator.sendBeacon) {
+      try { if (navigator.sendBeacon(url, new Blob([body], { type: 'text/plain' }))) return; } catch (e) { /* 下の fetch で送る */ }
+    }
+    try {
+      fetch(url, { method: 'POST', body, headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, credentials: 'omit', cache: 'no-store', keepalive: true }).catch(() => {});
+    } catch (e) { /* noop */ }
+  },
+  startBoard() {
+    this.stopBoard(false);
+    if (!this.isHost || !this.isPublic || !this.roomsUrl()) return;
+    this.boardToken = randToken();
+    this.sendRoom(false);
+    this.boardPostAt = performance.now();
+    this.board = setInterval(() => {
+      if (!this.isHost || !this.peer) return;
+      this.sendRoom(false);
+      this.boardPostAt = performance.now();
+    }, ROOM_POST_MS);
+  },
+  // 人数・設定・レース状態が変わったらすぐ反映（続けて変わった時は1秒にまとめる）
+  touchBoard() {
+    if (!this.board) return;
+    clearTimeout(this.boardSoon);
+    const wait = Math.max(0, 1000 - (performance.now() - this.boardPostAt));
+    this.boardSoon = setTimeout(() => {
+      if (!this.board) return;
+      this.sendRoom(false);
+      this.boardPostAt = performance.now();
+    }, wait);
+  },
+  stopBoard(sendClose) {
+    const had = !!this.board;
+    clearInterval(this.board); clearTimeout(this.boardSoon);
+    this.board = null;
+    if (had && sendClose) this.sendRoom(true);
+    this.boardToken = '';
+  },
+  // ---- おまかせで入る ----
+  async quick() {
+    this.quickActive = false; this.quickQueue = [];
+    this.setStatus('部屋をさがしています…');
+    if (!(await this.load())) { this.setStatus('通信ライブラリを読み込めませんでした。ネット接続を確認してね。', true); return; }
+    const tk = ++this.wakeTk;
+    if (!(await this.wakeServer()) || tk !== this.wakeTk) return;
+    this.setStatus('部屋をさがしています…');
+    const rooms = await this.fetchRooms();
+    if (tk !== this.wakeTk) return;
+    if (!rooms) { this.setStatus('部屋の一覧を読み込めませんでした。もう一度ためしてね', true); return; }
+    UI.renderRooms(rooms);
+    // 待機中で空きがある部屋を、人が多い順にためす（サーバー側で並べ替え済み）
+    this.quickQueue = rooms.filter((r) => r.status === 'wait' && (r.players | 0) < (r.max | 0 || NET_MAX)).map((r) => String(r.code)).slice(0, 6);
+    this.quickActive = true;
+    this.quickNext();
+  },
+  // 次の候補へ。候補がなくなったら自分で公開ルームをつくる。処理を引き受けたら true
+  quickNext() {
+    if (!this.quickActive) return false;
+    if (this.quickQueue.length) {
+      const code = this.quickQueue.shift();
+      this.setStatus(`部屋 ${code} に入ります…`);
+      setTimeout(() => { if (this.quickActive) this.join(code, { quick: true }); }, 250);
+      return true;
+    }
+    this.quickActive = false;
+    this.setStatus('空いている部屋がなかったので、部屋をつくるね');
+    setTimeout(() => this.host(true, true), 250);
+    return true;
+  },
+  // 部屋に入れなかった時（おまかせ中なら次の部屋へ）
+  joinFailed(msg) {
+    this.leave(true);
+    if (this.quickNext()) return;
+    this.setStatus(msg, true);
+    if (UI.cur !== 'online') UI.show('online');
+  },
+  // ---- 招待リンク ----
+  inviteUrl() {
+    let u = null;
+    try { if (INVITE_URL) u = new URL(INVITE_URL, location.href); } catch (e) { u = null; }
+    if (!u) { try { if (window.top !== window && /^https?:$/.test(window.top.location.protocol)) u = new URL(window.top.location.href); } catch (e) { u = null; } }
+    if (!u && /^https?:$/.test(location.protocol)) u = new URL(location.href);
+    if (!u) u = new URL('https://h1ro223.github.io/');
+    u.hash = '';
+    u.searchParams.set('room', this.code);
+    return u.toString();
+  },
+  // 招待リンク（?room=1234）から開かれた時は、そのまま部屋に入る
+  checkInvite() {
+    const read = (loc) => { try { return new URLSearchParams(loc.search).get('room'); } catch (e) { return null; } };
+    let code = read(location), from = window;
+    if (!code) { try { if (window.top !== window) { code = read(window.top.location); from = window.top; } } catch (e) { code = null; } }
+    code = String(code || '').replace(/[^0-9]/g, '');
+    if (code.length !== 4) return false;
+    // 再読み込みでもう一度入ろうとしないよう、URLから外しておく
+    try {
+      const u = new URL(from.location.href);
+      u.searchParams.delete('room');
+      from.history.replaceState(from.history.state, '', u.toString());
+    } catch (e) { /* noop */ }
+    UI.show('online');
+    const inp = $('#net-code');
+    if (inp) inp.value = code;
+    this.setStatus(`招待された部屋（${code}）に入ります…`);
+    this.join(code);
+    return true;
+  },
   me() { return { name: (S().netName || 'プレイヤー').slice(0, 8), ci: Store.data.lastChar || 0 }; },
   setStatus(msg, bad) { UI.netStatus(msg, bad); },
   // ---- 部屋をつくる（ホスト） ----
-  async host() {
+  async host(pub, fromQuick) {
+    if (!fromQuick) { this.quickActive = false; this.quickQueue = []; }
+    const isPub = pub === undefined ? S().netPublic !== false : !!pub;
     this.setStatus('準備中…');
     if (!(await this.load())) { this.setStatus('通信ライブラリを読み込めませんでした。ネット接続を確認してね。', true); return; }
     const tk = ++this.wakeTk;
     if (!(await this.wakeServer()) || tk !== this.wakeTk) return;
     this.setStatus('準備中…');
     this.leave(true);
-    this.isHost = true; this.leaving = false;
+    this.isHost = true; this.leaving = false; this.isPublic = isPub;
     const open = (n) => {
       const code = String(Math.floor(1000 + Math.random() * 9000));
       const peer = new window.Peer(NET_PREFIX + code, this.peerOpts());
@@ -5735,8 +5975,11 @@ const Net = {
         this.setStatus('');
         UI.show('lobby');
         this.lobbyChanged();
+        this.startBoard();
+        if (fromQuick) UI.netToast('空いている部屋がなかったので、新しく部屋をつくったよ。だれか来るまで待ってね');
       });
       peer.on('error', (err) => {
+        if (this.peer !== peer) return; // 作り直す前の古い接続のエラーは無視
         if (err.type === 'unavailable-id' && n < 6) { peer.destroy(); open(n + 1); return; }
         this.onPeerError(err);
       });
@@ -5746,9 +5989,10 @@ const Net = {
     open(0);
   },
   // ---- 部屋に入る ----
-  async join(code) {
+  async join(code, opts) {
+    if (!(opts && opts.quick)) { this.quickActive = false; this.quickQueue = []; }
     code = String(code || '').replace(/[^0-9]/g, '');
-    if (code.length !== 4) { this.setStatus('4桁の部屋コードを入れてね', true); return; }
+    if (code.length !== 4) { this.setStatus('4桁の部屋番号を入れてね', true); return; }
     this.setStatus('接続中…');
     if (!(await this.load())) { this.setStatus('通信ライブラリを読み込めませんでした。ネット接続を確認してね。', true); return; }
     const tk = ++this.wakeTk;
@@ -5762,7 +6006,7 @@ const Net = {
       this.myId = id;
       const conn = peer.connect(NET_PREFIX + code, { reliable: true, serialization: 'json' });
       this.hostConn = conn;
-      const timer = setTimeout(() => { if (!conn.open) { this.setStatus('部屋が見つからないか、つながりませんでした', true); this.leave(); } }, 15000);
+      const timer = setTimeout(() => { if (this.hostConn === conn && !conn.open) this.joinFailed('部屋が見つからないか、つながりませんでした'); }, 15000);
       conn.on('open', () => {
         clearTimeout(timer);
         this.code = code;
@@ -5770,12 +6014,14 @@ const Net = {
         conn.send({ t: 'hello', v: NET_VER, name: me.name, ci: me.ci });
         this.startHeartbeat();
       });
-      conn.on('data', (m) => this.onClientMsg(m));
-      conn.on('close', () => this.onHostLost());
-      conn.on('error', () => this.onHostLost());
+      conn.on('data', (m) => { if (this.hostConn === conn) this.onClientMsg(m); });
+      // 前にためした部屋の切断通知で、今の接続まで切らないよう自分の接続だけ見る
+      conn.on('close', () => { if (this.hostConn === conn) this.onHostLost(); });
+      conn.on('error', () => { if (this.hostConn === conn) this.onHostLost(); });
     });
     peer.on('error', (err) => {
-      if (err.type === 'peer-unavailable') { this.setStatus('その部屋は見つかりませんでした', true); this.leave(); return; }
+      if (this.peer !== peer) return;
+      if (err.type === 'peer-unavailable') { this.joinFailed('その部屋は見つかりませんでした'); return; }
       this.onPeerError(err);
     });
   },
@@ -5786,6 +6032,7 @@ const Net = {
   },
   // ---- 退出 ----
   leave(silent) {
+    this.stopBoard(true); // 公開ルームなら一覧から消す（部屋番号を消す前に）
     this.leaving = true;
     clearInterval(this.hb); this.hb = null; this.lastSeen = new Map();
     try { if (this.hostConn && this.hostConn.open) this.hostConn.send({ t: 'bye' }); } catch (e) { /* noop */ }
@@ -5793,7 +6040,7 @@ const Net = {
     try { if (this.hostConn) this.hostConn.close(); } catch (e) { /* noop */ }
     try { if (this.peer) this.peer.destroy(); } catch (e) { /* noop */ }
     this.peer = null; this.hostConn = null; this.conns = new Map(); this.players = [];
-    this.inRace = false; this.latest = []; this.loaded = new Set(); this.isHost = false; this.code = '';
+    this.inRace = false; this.latest = []; this.loaded = new Set(); this.isHost = false; this.code = ''; this.isPublic = false;
     if (!silent) UI.updateLobby();
   },
   active() { return !!this.peer; },
@@ -5849,8 +6096,9 @@ const Net = {
     this.checkGo();
   },
   lobbyChanged() {
-    if (this.isHost) this.broadcast({ t: 'lobby', players: this.players, settings: this.settings, code: this.code });
+    if (this.isHost) this.broadcast({ t: 'lobby', players: this.players, settings: this.settings, code: this.code, pub: this.isPublic });
     UI.updateLobby();
+    this.touchBoard();
   },
   // ---- 参加者側 ----
   onClientMsg(m) {
@@ -5859,11 +6107,11 @@ const Net = {
     if (m.t === 'ping') return;
     switch (m.t) {
       case 'lobby':
-        this.players = m.players; this.settings = m.settings; this.code = m.code || this.code;
-        if (!this.joined) { this.joined = true; this.setStatus(''); UI.show('lobby'); AudioSys.sfx('itemget'); }
+        this.players = m.players; this.settings = m.settings; this.code = m.code || this.code; this.isPublic = !!m.pub;
+        if (!this.joined) { this.joined = true; this.quickActive = false; this.quickQueue = []; this.setStatus(''); UI.show('lobby'); AudioSys.sfx('itemget'); }
         UI.updateLobby();
         break;
-      case 'deny': this.setStatus(m.why, true); this.leave(); UI.show('online'); break;
+      case 'deny': this.joinFailed(m.why); break;
       case 'start': Game.startOnline(m); break;
       case 'go': if (Game.race && Game.race.cfg.online) Game.race.netGo(); break;
       case 'snap': this.applySnap(m.k); break;
@@ -5879,6 +6127,8 @@ const Net = {
   },
   onHostLost() {
     if (this.leaving || !this.peer) return;
+    // ロビーに入る前に切れた＝部屋に入れなかった（おまかせ中なら次の部屋へ）
+    if (!this.isHost && !this.joined) { this.joinFailed('部屋につながりませんでした'); return; }
     const wasRacing = Game.state === 'race' || Game.state === 'results';
     this.leave();
     this.setStatus('ホストとの接続が切れました', true);
@@ -5896,6 +6146,8 @@ const Net = {
     pool.slice(0, cpuN).forEach((ci) => { grid.push(ci); owners.push(this.myId); names.push(null); });
     shuffle(humans).forEach((p) => { grid.push(p.ci); owners.push(p.id); names.push(p.name); });
     const msg = { t: 'start', course: st.course, cls: st.cls, laps: cd.laps || st.laps, items: st.items !== false, grid, owners, names };
+    this.inRace = true; // スタートを押した瞬間から新しい参加は断り、一覧も「レース中」にする
+    this.touchBoard();
     this.broadcast(msg);
     Game.startOnline(msg);
   },
@@ -5916,6 +6168,7 @@ const Net = {
   },
   toLobby() {
     this.inRace = false;
+    this.touchBoard();
     if (this.isHost) this.broadcast({ t: 'tolobby' });
     Game.toMenu('lobby');
   },
@@ -6216,6 +6469,7 @@ function boot() {
     Game.state = 'menu';
     Game.loading(false);
     UI.show('title');
+    Net.checkInvite(); // ?room=1234 で開かれたら、そのまま部屋へ
     let last = performance.now(), acc = 0;
     const frame = (ts) => {
       requestAnimationFrame(frame);

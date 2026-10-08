@@ -123,13 +123,22 @@
           <label class="opt net-name"><span>なまえ</span><input id="net-name" type="text" maxlength="8" autocomplete="off" placeholder="プレイヤー"></label>
           <div class="net-char"><button class="btn mini" data-act="netchar" data-dir="-1">◀</button><img alt=""><span></span><button class="btn mini" data-act="netchar" data-dir="1">▶</button></div>
         </div>
-        <button class="btn big" data-act="nethost" data-autofocus><span>部屋をつくる</span><small>ホストになって友だちを待つ</small></button>
+        <button class="btn big go" data-act="netquick" data-autofocus><span>おまかせで入る</span><small>空いている公開ルームに入る。なければ部屋をつくって待つ</small></button>
+        <div class="net-rooms-head">
+          <h3>公開ルーム</h3>
+          <button class="btn mini" data-act="netrefresh">更新</button>
+        </div>
+        <div id="net-rooms" class="net-rooms" aria-live="polite"><p class="net-empty">部屋をさがしています…</p></div>
+        <div class="net-make">
+          <button class="btn tog-pub on" id="net-pub" data-act="netpub" aria-pressed="true"><small>部屋の公開</small><b id="net-pub-label">公開</b></button>
+          <button class="btn big" data-act="nethost"><span>部屋をつくる</span><small id="net-pub-desc">一覧にのせて、だれでも入れる</small></button>
+        </div>
         <div class="net-join">
-          <input id="net-code" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="部屋コード">
-          <button class="btn big go" data-act="netjoin">部屋に入る</button>
+          <input id="net-code" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="部屋番号">
+          <button class="btn big" data-act="netjoin">番号で入る</button>
         </div>
         <p id="net-status" class="note"></p>
-        <p class="small net-help">同じ部屋の人とP2P（直接通信）で走ります。回線によってはつながらないことがあります。アイテムの命中は「当てられた人の画面」で判定します。</p>
+        <p class="small net-help">同じ部屋の人とP2P（直接通信）で走ります。プライベートの部屋には、部屋番号か招待リンクで入れます。回線によってはつながらないことがあります。アイテムの命中は「当てられた人の画面」で判定します。</p>
         <div class="btn-row"><button class="btn back" data-act="back">もどる</button></div>
       </div>
     </section>
@@ -137,7 +146,7 @@
     <!-- ロビー -->
     <section id="scr-lobby" class="screen">
       <div class="panel wide">
-        <h2>ロビー <span class="room-code">部屋コード <b id="lobby-code">----</b></span></h2>
+        <h2>ロビー <span class="room-code"><em id="lobby-kind" class="room-kind pub">公開</em>部屋番号 <b id="lobby-code">----</b></span></h2>
         <div class="lobby-layout">
           <div id="lobby-players" class="lobby-players"></div>
           <div class="lobby-side">
@@ -155,6 +164,7 @@
         <p id="lobby-note" class="note"></p>
         <div class="btn-row">
           <button class="btn back" data-act="netleave">退出</button>
+          <button class="btn" id="lobby-copy" data-act="netcopy">リンクをコピー</button>
           <button class="btn big go" id="lobby-start" data-act="lstart">スタート</button>
         </div>
       </div>
