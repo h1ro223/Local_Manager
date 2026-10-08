@@ -896,6 +896,8 @@ const Input = {
 
   init() {
     window.addEventListener('keydown', (e) => {
+      // サーバー起動待ち画面が出ている間は、ゲーム側でキー入力を受け付けない
+      if (window.ServerWakeup && window.ServerWakeup.isBusy()) return;
       AudioSys.init();
       if (Game.state === 'race' && !Game.paused && GAME_CODES.has(e.code)) e.preventDefault();
       if (e.repeat && GAME_CODES.has(e.code)) return;
@@ -1103,12 +1105,16 @@ const Input = {
   },
   update(dt) {
     this.pollPad();
+    // サーバー起動待ち画面が出ている間は、コントローラーのメニュー操作をゲームに渡さない
+    // （待ち画面を閉じた瞬間に押しっぱなしのボタンが反応しないよう、離すまでロックする）
+    const wkBusy = !!(window.ServerWakeup && window.ServerWakeup.isBusy());
+    if (wkBusy) { this.padLock = true; const WN = this.pad.nav; for (const k in WN) this.padPrev[k] = WN[k]; }
     // ボタン入れ替え直後は、押しているボタンを一度離すまで無視（押した瞬間に意味が変わって誤作動するのを防ぐ）
     if (this.padLock) {
       const N = this.pad.nav;
       if (N.a || N.b || N.start) { for (const k in N) this.padPrev[k] = N[k]; } else this.padLock = false;
     }
-    const e = this.padLock ? {} : this.padEdges(dt);
+    const e = (this.padLock || wkBusy) ? {} : this.padEdges(dt);
     if ((e.start || e.select) && Game.state === 'race') Game.togglePause();
     else if (Game.state !== 'race' || Game.paused) {
       if (e.up) UI.nav('up'); if (e.down) UI.nav('down'); if (e.left) UI.nav('left'); if (e.right) UI.nav('right');
@@ -5313,6 +5319,8 @@ const UI = {
     $('#net-name').value = S().netName || '';
     this.drawNetChar();
     Net.load();
+    // オンライン画面を開いた時だけ、裏でサーバーを起こし始める（タイトルでは起こさない＝無料枠の節約）
+    if (window.ServerWakeup) window.ServerWakeup.prewarm();
   },
   saveNetName() {
     const v = ($('#net-name').value || '').trim().slice(0, 8);
@@ -5642,6 +5650,7 @@ const UI = {
    ========================================================= */
 const NET_VER = 1;
 const NET_PREFIX = 'tpgp-room-';
+const NET_PATH = '/race'; // 共用サーバー上のこのゲームの部屋（wakeup.js / server.js と対応）
 const PEERJS_URLS = [
   'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js',
   'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js',
@@ -5653,7 +5662,7 @@ const Net = {
   peer: null, isHost: false, code: '', myId: '', hostConn: null, conns: new Map(),
   players: [], settings: { course: 0, cls: 1, laps: 3, cpu: 3, items: true },
   inRace: false, latest: [], loaded: new Set(), sendT: 0, wentGo: false, joined: false, leaving: false,
-  lastSeen: new Map(), hostSeen: 0, hb: null,
+  lastSeen: new Map(), hostSeen: 0, hb: null, wakeTk: 0,
   // 1秒ごとの生存確認。7秒返事がなければ切断とみなす（タブを閉じた時などは通知が来ないため）
   startHeartbeat() {
     clearInterval(this.hb);
@@ -5688,13 +5697,30 @@ const Net = {
     });
     return this.loading;
   },
-  peerOpts() { return Object.assign({ debug: 0 }, window.__TPGP_NET || {}); },
+  // 接続先は共用サーバー（/race）。wakeup.js が読めなかった時だけ PeerJS 公式の受付サーバーを使う
+  peerOpts() {
+    const own = window.ServerWakeup ? window.ServerWakeup.peerOptions(NET_PATH) : {};
+    return Object.assign({ debug: 0 }, own, window.__TPGP_NET || {});
+  },
+  // 共用サーバーを起こす（スリープ中なら起動待ち画面を出す）。OK=true / キャンセル=false
+  wakeServer() {
+    if (!window.ServerWakeup) return Promise.resolve(true);
+    this.setStatus('サーバーを起こしています…');
+    return window.ServerWakeup.wake(null, {
+      label: 'TURBO PIXEL GP',
+      swapAB: () => !!S().swapAB,
+      onCancel: () => this.setStatus('接続をキャンセルしたよ'),
+    }).catch(() => false);
+  },
   me() { return { name: (S().netName || 'プレイヤー').slice(0, 8), ci: Store.data.lastChar || 0 }; },
   setStatus(msg, bad) { UI.netStatus(msg, bad); },
   // ---- 部屋をつくる（ホスト） ----
   async host() {
     this.setStatus('準備中…');
     if (!(await this.load())) { this.setStatus('通信ライブラリを読み込めませんでした。ネット接続を確認してね。', true); return; }
+    const tk = ++this.wakeTk;
+    if (!(await this.wakeServer()) || tk !== this.wakeTk) return;
+    this.setStatus('準備中…');
     this.leave(true);
     this.isHost = true; this.leaving = false;
     const open = (n) => {
@@ -5725,6 +5751,9 @@ const Net = {
     if (code.length !== 4) { this.setStatus('4桁の部屋コードを入れてね', true); return; }
     this.setStatus('接続中…');
     if (!(await this.load())) { this.setStatus('通信ライブラリを読み込めませんでした。ネット接続を確認してね。', true); return; }
+    const tk = ++this.wakeTk;
+    if (!(await this.wakeServer()) || tk !== this.wakeTk) return;
+    this.setStatus('接続中…');
     this.leave(true);
     this.isHost = false; this.joined = false; this.leaving = false;
     const peer = new window.Peer(this.peerOpts());

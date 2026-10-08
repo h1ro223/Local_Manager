@@ -531,7 +531,7 @@ input[type="range"]:focus::-webkit-slider-thumb { background: var(--pink); }
   .screen.side { justify-content: center; padding-left: calc(14px + var(--sal)); }
 }
 @media (max-height: 820px) and (min-width: 700px) {
-  .course-grid { grid-template-columns: repeat(12, 1fr); gap: 5px; }
+  .course-grid { grid-template-columns: repeat(15, 1fr); gap: 5px; }
   .cup-head { display: none; }
   .course-card { padding: 6px 3px 8px; }
   .course-card canvas { max-width: 72px; }
@@ -555,7 +555,7 @@ input[type="range"]:focus::-webkit-slider-thumb { background: var(--pink); }
   .course-grid { grid-template-columns: repeat(8, 1fr); gap: 5px; }
   .course-card .c-jp { font-size: 11px; line-height: 1.2; }
   .cup-head { display: none; }
-  .course-grid { grid-template-columns: repeat(12, 1fr); }
+  .course-grid { grid-template-columns: repeat(15, 1fr); }
   .cup-minis canvas { max-width: 64px; }
   .cup-name { font-size: 18px; }
   .desc-box { margin-top: 8px; padding: 6px 10px; font-size: 13px; min-height: 0; }
