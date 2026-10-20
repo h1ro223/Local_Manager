@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="theme-color" content="#EEF1F7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#171C33" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="覚えているポケモンの技をいくつ言えるか挑戦する非公式ファンメイドゲーム。キーボードでも声でも答えられます。">
+  <title>ワザいえるかな？</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+  <!-- 演出用キャンバス（紙吹雪・パーティクル） -->
+  <canvas id="fx" class="fx" aria-hidden="true"></canvas>
+  <!-- お知らせ（トースト） -->
+  <div id="toast-area" class="toast-area" aria-live="polite"></div>
+
+  <!-- ===== タイトル画面 ===== -->
+  <section id="screen-title" class="screen is-active" aria-labelledby="title-heading">
+    <div class="title-wrap">
+      <p class="unofficial-badge">非公式ファンメイド</p>
+      <header class="hero">
+        <h1 id="title-heading" class="hero-title">ワザ<br>いえるかな？</h1>
+        <p class="hero-lead">覚えている技を、ひとつずつ答えよう。キーボードでも、声でもOK。<br>全<span id="total-count">847</span>個の通常技に挑戦できます。</p>
+        <div class="hero-mosaic" id="hero-mosaic" aria-hidden="true"></div>
+        <p class="api-status" id="api-status" aria-live="polite"></p>
+      </header>
+
+      <div id="resume-card" class="resume-card" hidden>
+        <div>
+          <p class="resume-title">前回の続きがあります</p>
+          <p class="resume-meta" id="resume-meta"></p>
+        </div>
+        <div class="resume-actions">
+          <button type="button" class="btn btn-primary" id="btn-resume">続きから</button>
+          <button type="button" class="btn btn-ghost" id="btn-discard">破棄する</button>
+        </div>
+      </div>
+
+      <div class="setup">
+        <fieldset class="setup-block">
+          <legend>出題範囲</legend>
+          <div class="seg" role="radiogroup" aria-label="出題範囲" id="seg-kind">
+            <button type="button" role="radio" data-kind="gen" aria-checked="true">世代別</button>
+            <button type="button" role="radio" data-kind="type" aria-checked="false">タイプ別</button>
+            <button type="button" role="radio" data-kind="all" aria-checked="false">全部の技</button>
+          </div>
+          <div class="chips" id="chips-gen" role="radiogroup" aria-label="世代"></div>
+          <div class="chips chips-type" id="chips-type" role="radiogroup" aria-label="タイプ" hidden></div>
+          <p class="all-note" id="all-note" hidden>全世代・全タイプの通常技すべてが対象です。じっくり挑戦したい人向け。</p>
+        </fieldset>
+
+        <fieldset class="setup-block">
+          <legend>制限時間</legend>
+          <div class="chips" id="chips-time" role="radiogroup" aria-label="制限時間"></div>
+        </fieldset>
+
+        <fieldset class="setup-block setup-toggles">
+          <legend>遊び方</legend>
+          <label class="toggle">
+            <input type="checkbox" id="opt-voice">
+            <span class="toggle-ui" aria-hidden="true"></span>
+            <span class="toggle-text">声で答える（音声入力）<small id="voice-support"></small></span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="opt-hint">
+            <span class="toggle-ui" aria-hidden="true"></span>
+            <span class="toggle-text">まだ言えていない枠にタイプの色を出す</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="opt-detail" checked>
+            <span class="toggle-ui" aria-hidden="true"></span>
+            <span class="toggle-text">正解した技の説明を表示する</span>
+          </label>
+        </fieldset>
+
+        <fieldset class="setup-block setup-toggles">
+          <legend>サウンド</legend>
+          <label class="toggle">
+            <input type="checkbox" id="opt-se" checked>
+            <span class="toggle-ui" aria-hidden="true"></span>
+            <span class="toggle-text">効果音</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="opt-bgm" checked>
+            <span class="toggle-ui" aria-hidden="true"></span>
+            <span class="toggle-text">BGM</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="opt-speak">
+            <span class="toggle-ui" aria-hidden="true"></span>
+            <span class="toggle-text">正解した技名を読み上げる<small>音声入力中は読み上げません</small></span>
+          </label>
+          <div class="volume-row">
+            <label for="opt-volume">音量</label>
+            <input type="range" id="opt-volume" min="0" max="100" step="5" value="70">
+            <span id="volume-val">70</span>
+            <button type="button" class="btn btn-ghost btn-small" id="btn-sound-test">試聴</button>
+          </div>
+        </fieldset>
+
+        <div class="start-row">
+          <p class="best-line" id="best-line"></p>
+          <button type="button" class="btn btn-primary btn-start" id="btn-start">スタート</button>
+        </div>
+      </div>
+
+      <section class="about" aria-labelledby="about-heading">
+        <h2 id="about-heading">このサイトについて（必ずお読みください）</h2>
+        <p>このゲームは、ファンが個人で制作した<strong>非公式</strong>のコンテンツです。株式会社ポケモン・任天堂・株式会社クリーチャーズ・株式会社ゲームフリークとは一切関係ありません。</p>
+        <p>ポケモン・ポケットモンスター・Pokémonは、任天堂・クリーチャーズ・ゲームフリークの登録商標です。技名などの権利は各権利者に帰属します。</p>
+        <p>技のデータと説明文は、有志のデータベース<a href="https://pokeapi.co/" target="_blank" rel="noopener">PokéAPI</a>から取得しています。データの正確性や最新性は保証できません。</p>
+        <p>音声入力は、お使いのブラウザの音声認識機能を使います。音声の扱いはブラウザ提供元の方針に従います。このサイトが音声を保存することはありません。</p>
+      </section>
+    </div>
+  </section>
+
+  <!-- ===== ゲーム画面 ===== -->
+  <section id="screen-game" class="screen" aria-label="ゲーム">
+    <div class="game-head" id="game-head">
+      <div class="stat-row">
+        <div class="stat-count" aria-live="polite">
+          <span class="count-now" id="count-now">0</span><span class="count-sep">/</span><span class="count-total" id="count-total">0</span>
+        </div>
+        <div class="combo" id="combo" aria-hidden="true">
+          <span class="combo-num" id="combo-num">2</span><span class="combo-label">コンボ</span>
+          <span class="combo-bar"><i id="combo-bar"></i></span>
+        </div>
+        <div class="stat-scope" id="stat-scope"></div>
+        <div class="stat-timer" id="stat-timer" aria-label="時間">0:00</div>
+        <div class="head-buttons">
+          <button type="button" class="icon-btn" id="btn-pause" aria-label="一時停止">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+          </button>
+          <button type="button" class="btn btn-ghost btn-small" id="btn-giveup">ギブアップ</button>
+        </div>
+      </div>
+      <div class="progress" aria-hidden="true"><div class="progress-bar" id="progress-bar"></div></div>
+
+      <div class="input-row" id="input-row">
+        <button type="button" class="mic-btn" id="btn-mic" aria-label="音声入力" aria-pressed="false" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/></svg>
+          <span class="mic-wave" aria-hidden="true"></span>
+        </button>
+        <input type="text" id="answer" class="answer" placeholder="技の名前を入力" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="技の名前" aria-describedby="feedback">
+        <button type="button" class="btn btn-primary btn-enter" id="btn-enter">決定</button>
+      </div>
+      <p class="feedback" id="feedback" aria-live="polite">ひらがな・カタカナどちらでもOK。ぴったり合えば自動で入ります。</p>
+
+      <div class="last-card" id="last-card" hidden>
+        <span class="lc-type" id="lc-type"></span>
+        <div class="lc-body">
+          <p class="lc-name"><span id="lc-name"></span><span class="lc-meta" id="lc-meta"></span></p>
+          <p class="lc-desc" id="lc-desc"></p>
+        </div>
+      </div>
+
+      <div class="review-row" id="review-row" hidden>
+        <button type="button" class="btn btn-primary btn-small" id="btn-show-result">結果を見る</button>
+        <button type="button" class="btn btn-ghost btn-small" id="btn-only-missed" aria-pressed="false">言えなかった技だけ</button>
+        <button type="button" class="btn btn-ghost btn-small" id="btn-retry-review">もう一度</button>
+        <button type="button" class="btn btn-ghost btn-small" id="btn-title-review">タイトルへ</button>
+      </div>
+      <p class="review-tip" id="review-tip" hidden>マスをタップすると技の詳しい説明が見られます。</p>
+    </div>
+
+    <div class="board" id="board"></div>
+  </section>
+
+  <!-- ===== カウントダウン ===== -->
+  <div class="countdown" id="countdown" hidden aria-live="assertive">
+    <span class="cd-num" id="cd-num">3</span>
+  </div>
+
+  <!-- ===== 大きなお知らせ（コンプリート・タイムアップ） ===== -->
+  <div class="banner" id="banner" hidden aria-live="assertive">
+    <span class="banner-text" id="banner-text"></span>
+  </div>
+
+  <!-- ===== 一時停止 ===== -->
+  <div class="overlay" id="overlay-pause" hidden>
+    <div class="modal modal-small" role="dialog" aria-modal="true" aria-labelledby="pause-heading">
+      <h2 id="pause-heading" class="modal-title">一時停止中</h2>
+      <p class="modal-text">時間は止まっています。技の一覧も隠しています。</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary" id="btn-unpause">再開する</button>
+        <button type="button" class="btn btn-ghost" id="btn-pause-title">保存してタイトルへ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 確認 ===== -->
+  <div class="overlay" id="overlay-confirm" hidden>
+    <div class="modal modal-small" role="dialog" aria-modal="true" aria-labelledby="confirm-heading">
+      <h2 id="confirm-heading" class="modal-title">ギブアップしますか？</h2>
+      <p class="modal-text">ここで終了して結果を表示します。</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-danger" id="btn-confirm-yes">ギブアップする</button>
+        <button type="button" class="btn btn-ghost" id="btn-confirm-no">続ける</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 技の詳細 ===== -->
+  <div class="overlay" id="overlay-detail" hidden>
+    <div class="modal modal-detail" role="dialog" aria-modal="true" aria-labelledby="detail-name">
+      <div class="detail-top" id="detail-top">
+        <p class="detail-no" id="detail-no"></p>
+        <h2 class="detail-name" id="detail-name"></h2>
+        <p class="detail-en" id="detail-en"></p>
+      </div>
+      <div class="detail-badges" id="detail-badges"></div>
+      <dl class="detail-stats">
+        <div><dt>威力</dt><dd id="detail-power">—</dd></div>
+        <div><dt>命中</dt><dd id="detail-acc">—</dd></div>
+        <div><dt>PP</dt><dd id="detail-pp">—</dd></div>
+        <div><dt>優先度</dt><dd id="detail-pri">—</dd></div>
+      </dl>
+      <p class="detail-desc" id="detail-desc"></p>
+      <p class="detail-src">データ：PokéAPI（非公式データベース）</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary" id="btn-detail-close">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 結果 ===== -->
+  <div class="overlay" id="overlay-result" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="result-heading">
+      <p class="result-reason" id="result-reason"></p>
+      <h2 id="result-heading" class="result-rank"></h2>
+      <div class="result-score">
+        <span class="result-num" id="result-num">0</span>
+        <span class="result-of">/ <span id="result-total">0</span> 個</span>
+      </div>
+      <p class="result-sub" id="result-sub"></p>
+      <p class="result-best" id="result-best"></p>
+      <div class="breakdown" id="breakdown"></div>
+      <div class="modal-actions modal-actions-wrap">
+        <button type="button" class="btn btn-primary" id="btn-review">言えなかった技を見る</button>
+        <button type="button" class="btn btn-ghost" id="btn-share">Xでシェア</button>
+        <button type="button" class="btn btn-ghost" id="btn-retry">もう一度</button>
+        <button type="button" class="btn btn-ghost" id="btn-title">タイトルへ</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-foot">
+    <p class="credit">made by <a href="https://github.com/h1ro223" target="_blank" rel="noopener">hiro/ヒロ</a></p>
+    <p class="disclaimer">※このサイトは非公式のファンメイド作品です。株式会社ポケモン・任天堂・クリーチャーズ・ゲームフリークとは関係ありません。<br>ポケモン・ポケットモンスター・Pokémonは任天堂・クリーチャーズ・ゲームフリークの登録商標です。技データ：<a href="https://pokeapi.co/" target="_blank" rel="noopener">PokéAPI</a></p>
+  </footer>
+
+  <script src="./script.js"></script>
+</body>
+</html>
