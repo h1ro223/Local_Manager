@@ -44,11 +44,11 @@
       </div>
       <div class="ctrls touch">
         <div class="col left">
-          <button id="bLend" class="btn lend">玉貸<small>500円・125玉</small></button>
-          <div class="presets">
-            <button id="bL" class="btn sm">左打ち</button>
-            <button id="bR" class="btn sm right">右打ち</button>
+          <div id="lever" class="lever" role="button" tabindex="0" aria-label="レバー(下に引く)">
+            <div class="lever-slot"></div>
+            <div id="leverArm" class="lever-arm"><span class="lever-ball"></span></div>
           </div>
+          <button id="bLend" class="btn lend small">玉貸<small>500円</small></button>
         </div>
         <div class="col mid">
           <button id="bPush" class="push" aria-label="PUSHボタン"><span>PUSH</span></button>
@@ -56,6 +56,8 @@
         <div class="col right">
           <div id="dial" class="dial" role="slider" aria-label="ハンドル(打ち出しの強さ)">
             <div id="knob" class="knob"></div>
+            <i id="mkL" class="mark"><b>左</b></i>
+            <i id="mkR" class="mark"><b>右</b></i>
             <div class="dial-read"><b id="vPow">22.0</b><small>%</small></div>
           </div>
           <div class="fine">
@@ -107,7 +109,7 @@
       <label class="tog"><span>演出を少し速くする</span><input type="checkbox" data-k="fast"><i></i></label>
       <label class="tog"><span>リーチ時に液晶をズーム</span><input type="checkbox" data-k="zoom"><i></i></label>
       <label class="tog"><span>玉切れ時に自動で玉貸</span><input type="checkbox" data-k="autoLend"><i></i></label>
-      <label class="tog"><span>左打ち・右打ちを自動で切り替え</span><input type="checkbox" data-k="autoHandle"><i></i></label>
+      <label class="tog"><span>大当り・RUSH中は自動で右打ちに切り替え</span><input type="checkbox" data-k="autoHandle"><i></i></label>
       <label class="tog"><span>振動(対応端末のみ)</span><input type="checkbox" data-k="vib"><i></i></label>
       <label class="tog"><span>軽量モード(古い端末向け)</span><input type="checkbox" data-k="lite"><i></i></label>
     </div>
@@ -163,11 +165,12 @@
     <p>大当り中とRUSH・時短中は右打ちです。玉がスルーゲートを通ると電チューが開き、電チューへの入賞で図柄が回転します。大当り中は下のアタッカーが開きます。</p>
     <h3>演出の見どころ</h3>
     <p>保留やセリフ、カットインの色は 白 → 青 → 緑 → 赤 → 金 の順に期待度が上がります。虹色は大当り確定です。対決する敵は 天狗 → 大蛇 → 九尾 → 酒呑童子 の順に強敵になり、強い敵ほどチャンスです。擬似連、ステップアップ、群予告、鬼面ギミックの落下、激熱、全回転にも注目してください。</p>
+    <p>ボタンの代わりにレバーが出たら大チャンス。そして前触れなく画面が止まり、液晶が割れて虹色に染まったら……それは大当り+RUSH突入確定の「百鬼覚醒」です。</p>
     <h3>操作</h3>
     <table class="spec">
-      <tr><th>スマホ</th><td>ハンドルをドラッグして強さを調整(押している間だけ発射)。自動発射で押しっぱなし不要。◀▶で微調整</td></tr>
-      <tr><th>キーボード</th><td>Space 自動発射 / ←→ 強さ(Shiftで大きく)/ Q 左打ち / E 右打ち / Enter・Z PUSH / B 玉貸 / Esc 設定</td></tr>
-      <tr><th>コントローラー</th><td>A PUSH / B 自動発射 / X 左打ち / Y 右打ち / 左スティック・十字キー 強さ / RT 発射 / SELECT 玉貸 / START 設定(A/B・X/Yは設定で入れ替え可)</td></tr>
+      <tr><th>スマホ</th><td>ハンドルをドラッグして強さを調整(押している間だけ発射)。自動発射で押しっぱなし不要。◀▶で微調整。ハンドルの「左」「右」の目印付近では吸い付きます。レバーは下に引く(タップでもOK)</td></tr>
+      <tr><th>キーボード</th><td>Space 自動発射 / ←→ 強さ(Shiftで大きく)/ Q 左打ち / E 右打ち / Enter・Z PUSH / L・↓ レバー / B 玉貸 / Esc 設定</td></tr>
+      <tr><th>コントローラー</th><td>A PUSH / RB レバー / B 自動発射 / X 左打ち / Y 右打ち / 左スティック・十字キー 強さ(上下は大きく)/ RT 発射 / SELECT 玉貸 / START 設定(A/B・X/Yは設定で入れ替え可)</td></tr>
     </table>
     <p class="legal">本作品はオリジナルのパチンコシミュレーターです。実在の機種・メーカー・作品とは関係ありません。実際の金銭のやり取りは一切発生しません。</p>
     <p class="legal"><a class="credit" href="https://github.com/h1ro223" target="_blank" rel="noopener">made by hiro/ヒロ</a></p>

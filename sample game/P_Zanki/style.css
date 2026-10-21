@@ -214,6 +214,53 @@ body.pad-mode .pad-guide { display: block; }
 .foot { margin: 0; display: flex; justify-content: space-between; gap: 8px; font-size: 9px; color: #7a6040; }
 .credit { font-size: 10px; text-decoration: none; letter-spacing: 0.04em; }
 
+/* ---------- レバー ---------- */
+.col.left { flex-direction: row; align-items: center; justify-content: center; gap: 10px; }
+.lever { position: relative; flex: none; width: 46px; height: 92px; touch-action: none; cursor: grab; outline: none; }
+.lever.drag { cursor: grabbing; }
+.lever-slot {
+  position: absolute; left: 50%; top: 4px; bottom: 4px; width: 14px; margin-left: -7px; border-radius: 7px;
+  background: linear-gradient(90deg, #050203, #2a1a10, #050203); box-shadow: inset 0 0 0 1px #6a4a20, 0 3px 6px rgba(0, 0, 0, 0.6);
+}
+.lever-arm {
+  position: absolute; left: 50%; top: 18px; width: 10px; height: 44px; margin-left: -5px; border-radius: 5px;
+  background: linear-gradient(90deg, #8a8a92, #f4f4f6 50%, #5a5a62);
+  transform: translateY(var(--lv, 0px)); transition: transform 0.28s cubic-bezier(0.3, 1.7, 0.5, 1);
+}
+.lever.drag .lever-arm { transition: none; }
+.lever-ball {
+  position: absolute; left: 50%; top: -16px; width: 32px; height: 32px; margin-left: -16px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff6c0, #f0b020 45%, #6a3a00);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.6), inset 0 -2px 4px rgba(0, 0, 0, 0.4);
+}
+.lever.ready { animation: leverShake 0.11s linear infinite; }
+.lever.ready .lever-ball { animation: leverGlow 0.35s ease-in-out infinite alternate; }
+.lever.ready .lever-slot { box-shadow: inset 0 0 0 1px #ffd36b, 0 0 16px 4px rgba(255, 200, 70, 0.8); }
+@keyframes leverShake { 0% { transform: translateX(-1.5px); } 50% { transform: translateX(1.5px); } 100% { transform: translateX(-1.5px); } }
+@keyframes leverGlow { from { filter: brightness(1); box-shadow: 0 0 6px #ffcf4a; } to { filter: brightness(1.45); box-shadow: 0 0 24px 8px #ffcf4a; } }
+.btn.lend.small { padding: 10px 10px; font-size: 14px; flex: 0 1 auto; }
+.push.dim { filter: grayscale(0.8) brightness(0.5); }
+/* ハンドルの目印 */
+.mark { position: absolute; inset: 0; pointer-events: none; }
+.mark::before {
+  content: ""; position: absolute; left: 50%; top: -3px; width: 4px; height: 11px; margin-left: -2px; border-radius: 2px;
+  background: #fff3b0; box-shadow: 0 0 5px #ffcf4a;
+}
+.mark b {
+  position: absolute; left: 50%; top: -19px; font-size: 10px; font-weight: 800; color: var(--gold);
+  transform: translateX(-50%) rotate(calc(-1 * var(--a, 0deg)));
+}
+.dial.needR #mkR::before, .dial.needL #mkL::before { animation: markBlink 0.4s steps(2) infinite; }
+@keyframes markBlink { 0% { background: #ff3a2a; box-shadow: 0 0 10px #ff3a2a; } 100% { background: #fff3b0; } }
+/* 虹の超激アツ時の筐体演出 */
+body.rb #top, body.rb #deck { animation: rbHue 0.5s linear infinite; }
+body.rb #cab { animation: rbEdge 0.4s linear infinite; }
+@keyframes rbHue { from { filter: hue-rotate(0deg) saturate(1.6); } to { filter: hue-rotate(360deg) saturate(1.6); } }
+@keyframes rbEdge {
+  0% { box-shadow: inset 0 0 50px 8px #ff2a6a; } 25% { box-shadow: inset 0 0 50px 8px #ffd23a; }
+  50% { box-shadow: inset 0 0 50px 8px #3aff8a; } 75% { box-shadow: inset 0 0 50px 8px #3a8aff; } 100% { box-shadow: inset 0 0 50px 8px #ff2a6a; }
+}
+
 /* ---------- スペック設定 ---------- */
 input, select { -webkit-user-select: text; user-select: text; }
 .field { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: 13px; }
@@ -313,6 +360,8 @@ input, select { -webkit-user-select: text; user-select: text; }
   .dial { width: 82px; height: 82px; }
 }
 @media (max-height: 640px) and (orientation: portrait) {
+  .lever { height: 74px; }
+  .lever-arm { top: 14px; height: 36px; }
   .push { width: 66px; height: 66px; }
   .dial { width: 72px; height: 72px; }
   .btn.lend small { display: none; }
@@ -333,5 +382,5 @@ input, select { -webkit-user-select: text; user-select: text; }
   .foot { flex-direction: column; align-items: center; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .push.ready, .btn.hint, body[data-lamp] #board { animation: none !important; }
+  .push.ready, .btn.hint, body[data-lamp] #board, .lever.ready, body.rb #top, body.rb #deck, body.rb #cab { animation: none !important; }
 }
