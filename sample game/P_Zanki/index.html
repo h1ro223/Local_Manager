@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#14070a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<meta name="description" content="実機さながらの釘・玉の動き・液晶演出を再現したオリジナルパチンコシミュレーター「P 斬鬼 ～百鬼夜行～」">
+<title>P 斬鬼 ～百鬼夜行～ | パチンコシミュレーター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Shippori+Mincho+B1:wght@600;800&family=Yuji+Syuku&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body data-lamp="idle">
+<div id="app">
+  <header id="top">
+    <h1 class="logo"><span class="logo-p">P</span><span class="logo-txt"><span class="logo-main">斬鬼</span><span class="logo-sub">百鬼夜行</span></span></h1>
+    <div id="counter" aria-label="データカウンター">
+      <div class="cnt"><b id="cHits">0</b><span>大当り</span></div>
+      <div class="cnt"><b id="cRush">0</b><span>RUSH当り</span></div>
+      <div class="cnt"><b id="cSpins">0</b><span>回転数</span></div>
+      <div class="cnt wide"><b id="cTotal">0</b><span>総回転</span></div>
+    </div>
+    <nav class="tools">
+      <button id="bData" class="ico" aria-label="データ">データ</button>
+      <button id="bHelp" class="ico" aria-label="遊び方">遊び方</button>
+      <button id="bSet" class="ico" aria-label="設定">設定</button>
+    </nav>
+  </header>
+
+  <main id="cab">
+    <div id="boardWrap">
+      <canvas id="board" aria-label="パチンコ盤面"></canvas>
+    </div>
+
+    <section id="deck">
+      <div class="stats">
+        <div class="stat main"><span class="lab">持ち玉</span><b id="vBalls">0</b></div>
+        <div class="stat"><span class="lab">投資</span><b id="vInvest">0円</b></div>
+        <div class="stat"><span class="lab">収支</span><b id="vDiff">±0円</b></div>
+        <div class="stat mode"><span class="lab">状態</span><b id="vMode">通常</b></div>
+      </div>
+      <div class="ctrls touch">
+        <div class="col left">
+          <button id="bLend" class="btn lend">玉貸<small>500円・125玉</small></button>
+          <div class="presets">
+            <button id="bL" class="btn sm">左打ち</button>
+            <button id="bR" class="btn sm right">右打ち</button>
+          </div>
+        </div>
+        <div class="col mid">
+          <button id="bPush" class="push" aria-label="PUSHボタン"><span>PUSH</span></button>
+        </div>
+        <div class="col right">
+          <div id="dial" class="dial" role="slider" aria-label="ハンドル(打ち出しの強さ)">
+            <div id="knob" class="knob"></div>
+            <div class="dial-read"><b id="vPow">22.0</b><small>%</small></div>
+          </div>
+          <div class="fine">
+            <button id="bDn" class="btn xs" aria-label="弱く">◀</button>
+            <button id="bAuto" class="btn sm auto" aria-pressed="false">自動発射</button>
+            <button id="bUp" class="btn xs" aria-label="強く">▶</button>
+          </div>
+        </div>
+      </div>
+      <p id="padGuide" class="pad-guide"></p>
+      <p class="foot"><a class="credit" href="https://github.com/h1ro223" target="_blank" rel="noopener">made by hiro/ヒロ</a><span>オリジナル作品・実際の金銭は発生しません</span></p>
+    </section>
+  </main>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<!-- スタート画面 -->
+<div id="start" class="overlay">
+  <div class="start-body">
+    <p class="start-p">P</p>
+    <p class="start-title">斬鬼</p>
+    <p class="start-sub">～ 百鬼夜行 ～</p>
+    <p class="start-lead">釘を抜け、鬼を斬れ。<br>一撃の大当りと百鬼討滅RUSHを目指す、和風ダークファンタジーのパチンコ。</p>
+    <button id="bStart" class="btn start">遊技開始</button>
+    <p id="cont" class="cont"></p>
+    <ul class="start-notes">
+      <li>玉貸で玉を借りて、ハンドルを回すと玉が発射されます</li>
+      <li>通常時は左打ちでヘソ(START)を狙ってください</li>
+      <li>音が出ます。音量は設定から変更できます</li>
+    </ul>
+    <p class="start-legal">本作品はオリジナルのパチンコシミュレーターです。実在の機種・メーカーとは関係ありません。実際の金銭のやり取りは一切発生しません。</p>
+    <a class="credit big" href="https://github.com/h1ro223" target="_blank" rel="noopener">made by hiro/ヒロ</a>
+  </div>
+</div>
+
+<!-- 設定 -->
+<div id="mSet" class="modal" role="dialog" aria-label="設定">
+  <div class="modal-body">
+    <h2>設定</h2>
+    <div class="set-group">
+      <label class="range"><span>全体音量</span><input type="range" min="0" max="100" data-k="master"></label>
+      <label class="range"><span>BGM</span><input type="range" min="0" max="100" data-k="bgm"></label>
+      <label class="range"><span>効果音</span><input type="range" min="0" max="100" data-k="sfx"></label>
+    </div>
+    <div class="set-group">
+      <label class="tog"><span>釘に当たる音</span><input type="checkbox" data-k="nail"><i></i></label>
+      <label class="tog"><span>ボタン演出をオートで押す</span><input type="checkbox" data-k="autoBtn"><i></i></label>
+      <label class="tog"><span>演出を少し速くする</span><input type="checkbox" data-k="fast"><i></i></label>
+      <label class="tog"><span>リーチ時に液晶をズーム</span><input type="checkbox" data-k="zoom"><i></i></label>
+      <label class="tog"><span>玉切れ時に自動で玉貸</span><input type="checkbox" data-k="autoLend"><i></i></label>
+      <label class="tog"><span>左打ち・右打ちを自動で切り替え</span><input type="checkbox" data-k="autoHandle"><i></i></label>
+      <label class="tog"><span>振動(対応端末のみ)</span><input type="checkbox" data-k="vib"><i></i></label>
+      <label class="tog"><span>軽量モード(古い端末向け)</span><input type="checkbox" data-k="lite"><i></i></label>
+    </div>
+    <div class="set-group">
+      <h3>コントローラー</h3>
+      <label class="tog"><span>A / B ボタンを入れ替える</span><input type="checkbox" data-k="swapAB"><i></i></label>
+      <label class="tog"><span>X / Y ボタンを入れ替える</span><input type="checkbox" data-k="swapXY"><i></i></label>
+    </div>
+    <div class="set-group spec-group">
+      <h3>台のスペック</h3>
+      <label class="field"><span>プリセット</span><select id="spPreset"></select></label>
+      <label class="field"><span>大当り確率(通常時) 1/</span><input id="spN" type="number" inputmode="decimal" min="10" max="999.9" step="0.1"></label>
+      <label class="field"><span>大当り確率(RUSH中) 1/</span><input id="spS" type="number" inputmode="decimal" min="2" max="999.9" step="0.1"></label>
+      <label class="field"><span>RUSH(ST)回数</span><input id="spST" type="number" inputmode="numeric" min="1" max="999" step="1"></label>
+      <label class="field"><span>時短回数(チャレンジ失敗時)</span><input id="spJT" type="number" inputmode="numeric" min="0" max="999" step="1"></label>
+      <label class="field"><span>RUSH突入率(%)</span><input id="spRush" type="number" inputmode="numeric" min="0" max="100" step="1"></label>
+      <label class="field"><span>電チュー大当りの10R比率(%)</span><input id="spR10" type="number" inputmode="numeric" min="0" max="100" step="1"></label>
+      <label class="field"><span>ヘソ大当りのラウンド数</span><input id="spHR" type="number" inputmode="numeric" min="1" max="10" step="1"></label>
+      <p id="spCont" class="spec-cont"></p>
+      <button id="bSpec" class="btn apply">このスペックを適用</button>
+      <p class="spec-note">保留中の抽選結果はそのままで、次の抽選から反映されます。持ち玉やデータは消えません。</p>
+    </div>
+    <div class="set-group">
+      <button id="bReset" class="btn danger">データをリセット</button>
+    </div>
+    <button class="btn close">閉じる</button>
+  </div>
+</div>
+
+<!-- データ -->
+<div id="mData" class="modal" role="dialog" aria-label="データ">
+  <div class="modal-body">
+    <h2>データカウンター</h2>
+    <div id="dStats" class="dstats"></div>
+    <h3>スランプグラフ(差玉)</h3>
+    <canvas id="graph" class="graph"></canvas>
+    <h3>大当り履歴</h3>
+    <ol id="dHist" class="hist"></ol>
+    <button class="btn close">閉じる</button>
+  </div>
+</div>
+
+<!-- 遊び方 -->
+<div id="mHelp" class="modal" role="dialog" aria-label="遊び方">
+  <div class="modal-body help">
+    <h2>遊び方</h2>
+    <h3>基本の流れ</h3>
+    <p>玉貸で玉を借り、ハンドルを回すと1分間に100発のペースで玉が発射されます。通常時は左打ちで盤面左側に玉を流し、中央下のヘソ(START)に入ると図柄が回転します。図柄が揃えば大当りです。</p>
+    <p>玉の通り道は打ち出しの強さで変わります。弱めは道釘を転がるルート、中くらいはワープからステージへのルートに入りやすくなります。強すぎると右側へ流れるので注意してください。</p>
+    <h3>スペック</h3>
+    <table class="spec" id="specTbl"></table>
+    <h3>右打ち</h3>
+    <p>大当り中とRUSH・時短中は右打ちです。玉がスルーゲートを通ると電チューが開き、電チューへの入賞で図柄が回転します。大当り中は下のアタッカーが開きます。</p>
+    <h3>演出の見どころ</h3>
+    <p>保留やセリフ、カットインの色は 白 → 青 → 緑 → 赤 → 金 の順に期待度が上がります。虹色は大当り確定です。対決する敵は 天狗 → 大蛇 → 九尾 → 酒呑童子 の順に強敵になり、強い敵ほどチャンスです。擬似連、ステップアップ、群予告、鬼面ギミックの落下、激熱、全回転にも注目してください。</p>
+    <h3>操作</h3>
+    <table class="spec">
+      <tr><th>スマホ</th><td>ハンドルをドラッグして強さを調整(押している間だけ発射)。自動発射で押しっぱなし不要。◀▶で微調整</td></tr>
+      <tr><th>キーボード</th><td>Space 自動発射 / ←→ 強さ(Shiftで大きく)/ Q 左打ち / E 右打ち / Enter・Z PUSH / B 玉貸 / Esc 設定</td></tr>
+      <tr><th>コントローラー</th><td>A PUSH / B 自動発射 / X 左打ち / Y 右打ち / 左スティック・十字キー 強さ / RT 発射 / SELECT 玉貸 / START 設定(A/B・X/Yは設定で入れ替え可)</td></tr>
+    </table>
+    <p class="legal">本作品はオリジナルのパチンコシミュレーターです。実在の機種・メーカー・作品とは関係ありません。実際の金銭のやり取りは一切発生しません。</p>
+    <p class="legal"><a class="credit" href="https://github.com/h1ro223" target="_blank" rel="noopener">made by hiro/ヒロ</a></p>
+    <button class="btn close">閉じる</button>
+  </div>
+</div>
+
+<script src="./script.js"></script>
+</body>
+</html>
