@@ -55,30 +55,36 @@ const SPEC = {
   holdMax: 4,
   presetL: 0.22, presetR: 0.9,
   hesoR: 3,                // ヘソ大当りのラウンド数
+  hesoRushR: 3,            // ヘソ大当りでRUSH突入時の総ラウンド(PREMIUM)
+  rushR: 0,                // RUSH中大当りのラウンド(0=10R/3R振り分け)
+  loop: 0,                 // MAXループ継続率
   key: 'middle'
 };
 /* ---------- スペックのプリセット(設定画面から変更可能) ---------- */
 const SPEC_PRESETS = {
-  ama: { name: '甘デジ', pN: 99.9, pS: 39.9, st: 50, jt: 50, rush: 50, r10: 30, hesoR: 3 },
-  light: { name: 'ライトミドル', pN: 199.8, pS: 79.9, st: 120, jt: 100, rush: 50, r10: 50, hesoR: 3 },
-  middle: { name: 'ミドル(標準)', pN: 319.6, pS: 99.4, st: 130, jt: 100, rush: 50, r10: 70, hesoR: 3 },
-  high: { name: 'ハイミドル', pN: 349.9, pS: 109.9, st: 163, jt: 100, rush: 60, r10: 80, hesoR: 3 },
-  max: { name: 'MAX', pN: 399.9, pS: 99.9, st: 163, jt: 100, rush: 70, r10: 100, hesoR: 4 }
+  ama: { name: '甘デジ', pN: 99.9, pS: 39.9, st: 50, jt: 50, rush: 50, r10: 30, hesoR: 3, hrR: 3, rR: 0, loop: 0 },
+  light: { name: 'ライトミドル', pN: 199.8, pS: 79.9, st: 120, jt: 100, rush: 50, r10: 50, hesoR: 3, hrR: 3, rR: 0, loop: 0 },
+  middle: { name: 'ミドル(標準)', pN: 319.6, pS: 99.4, st: 130, jt: 100, rush: 50, r10: 70, hesoR: 3, hrR: 3, rR: 0, loop: 0 },
+  high: { name: 'ハイミドル', pN: 349.9, pS: 109.9, st: 163, jt: 100, rush: 60, r10: 80, hesoR: 3, hrR: 3, rR: 0, loop: 0 },
+  max: { name: 'MAX', pN: 399.9, pS: 99.9, st: 163, jt: 100, rush: 70, r10: 100, hesoR: 4, hrR: 4, rR: 0, loop: 0 },
+  kuishu: { name: '超一撃(喰種999風)', pN: 349.9, pS: 7.7, st: 5, jt: 0, rush: 50, r10: 100, hesoR: 20, hrR: 50, rR: 20, loop: 30 }
 };
-const SPEC_LIMIT = { pN: [10, 999.9], pS: [2, 999.9], st: [1, 999], jt: [0, 999], rush: [0, 100], r10: [0, 100], hesoR: [1, 10] };
+const SPEC_LIMIT = { pN: [10, 999.9], pS: [2, 999.9], st: [1, 999], jt: [0, 999], rush: [0, 100], r10: [0, 100], hesoR: [1, 60], hrR: [1, 60], rR: [0, 60], loop: [0, 90] };
 function specNum(k, v, d) {
   v = Number(v); if (!isFinite(v)) v = d;
   const L = SPEC_LIMIT[k]; v = Math.min(L[1], Math.max(L[0], v));
   return (k === 'pN' || k === 'pS') ? Math.round(v * 10) / 10 : Math.round(v);
 }
 function specGet() {
-  return { key: SPEC.key, pN: Math.round(1 / SPEC.pNormal * 10) / 10, pS: Math.round(1 / SPEC.pST * 10) / 10, st: SPEC.stCount, jt: SPEC.jitanCount, rush: Math.round(SPEC.rushRate1 * 100), r10: Math.round(SPEC.r10Rate2 * 100), hesoR: SPEC.hesoR };
+  return { key: SPEC.key, pN: Math.round(1 / SPEC.pNormal * 10) / 10, pS: Math.round(1 / SPEC.pST * 10) / 10, st: SPEC.stCount, jt: SPEC.jitanCount, rush: Math.round(SPEC.rushRate1 * 100), r10: Math.round(SPEC.r10Rate2 * 100), hesoR: SPEC.hesoR, hrR: SPEC.hesoRushR, rR: SPEC.rushR, loop: Math.round(SPEC.loop * 100) };
 }
 function applySpec(o) {
   const m = SPEC_PRESETS.middle, c = {};
   for (const k in SPEC_LIMIT) c[k] = specNum(k, o && o[k], m[k]);
   SPEC.pNormal = 1 / c.pN; SPEC.pST = 1 / c.pS; SPEC.stCount = c.st; SPEC.jitanCount = c.jt;
+  c.hrR = Math.max(c.hrR, c.hesoR);
   SPEC.rushRate1 = c.rush / 100; SPEC.r10Rate2 = c.r10 / 100; SPEC.hesoR = c.hesoR;
+  SPEC.hesoRushR = c.hrR; SPEC.rushR = c.rR; SPEC.loop = c.loop / 100;
   SPEC.key = (o && SPEC_PRESETS[o.key]) ? o.key : 'custom';
   return c;
 }
@@ -530,6 +536,7 @@ const PHYS = (() => {
    ========================================================== */
 const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 const seq = s => s.trim().split(/\s+/).map(x => x === '.' ? 0 : +x);
+const chords = m => { const a = new Array(32).fill(null); for (const k in m) a[k] = m[k]; return a; };
 const SONGS = {
   normal: {
     bpm: 76, k: 'x...............x...........x...', t: '........x...............x...x.x.', s: '', h: '',
@@ -547,14 +554,25 @@ const SONGS = {
     lead: seq('62 . 63 . 66 . 67 . 70 . . . 69 . 66 . 67 . 70 . 75 . 74 . 70 . . . 67 . 66 .')
   },
   bonus: {
-    bpm: 136, k: 'x...x...x...x...x...x...x...x...', s: '....x.......x.......x.......x...', h: '..x...x...x...x...x...x...x...x.', t: '',
-    bass: seq('38 . 50 . 45 . 50 . 43 . 55 . 45 . 57 . 38 . 50 . 45 . 50 . 47 . 59 . 45 . 57 .'),
-    lead: seq('74 . . 78 81 . . 78 79 . 78 . 76 . . . 74 . . 78 81 . . 86 85 . 83 . 81 . . .')
+    bpm: 140, k: 'x...x...x...x...x...x...x...x...', s: '....x.......x.......x.......x...', h: '..x...x...x...x...x...x...x...x.', t: 'x...............x.......x...x.x.',
+    bass: seq('38 . 38 50 . 50 38 . 45 . 45 57 . 57 45 . 47 . 47 59 . 59 47 . 43 . 43 55 . 55 45 .'),
+    lead: seq('74 . . . 78 . 81 . 86 . . 85 83 . 81 . 79 . 81 . 83 . 86 . 85 . . . 81 . . .'),
+    arp: seq('62 66 69 74 62 66 69 74 57 61 64 69 57 61 64 69 59 62 66 71 59 62 66 71 55 59 62 67 57 61 64 69'),
+    ch: chords({ 0: [62, 66, 69], 8: [57, 61, 64], 16: [59, 62, 66], 24: [55, 59, 62] })
   },
   rush: {
-    bpm: 168, k: 'x...x...x...x...x...x...x...x...', s: '....x.......x.......x.......x.x.', h: '.xxx.xxx.xxx.xxx.xxx.xxx.xxx.xxx', t: 'x...............x...........x...',
-    bass: seq('38 50 38 50 41 53 41 53 43 55 43 55 45 57 45 57 46 58 46 58 45 57 45 57 43 55 43 55 41 53 45 57'),
-    lead: seq('81 . 79 . 77 . 76 . 77 . . 74 . . 76 77 79 . 77 . 76 . 74 . 72 . 74 . . . . .')
+    bpm: 168, k: 'x...x...x...x...x...x...x...x...', s: '....x.......x.......x.......x.x.', h: '.xxx.xxx.xxx.xxx.xxx.xxx.xxx.xxx', t: 'x.......x.......x.......x...x.x.',
+    bass: seq('38 38 50 38 41 41 53 41 43 43 55 43 45 45 57 45 46 46 58 46 45 45 57 45 43 43 55 43 45 45 57 49'),
+    lead: seq('74 . 77 . 81 . 79 77 76 . 74 . 76 77 79 . 81 . 82 . 81 79 77 . 76 . 77 . 79 . 81 .'),
+    arp: seq('62 65 69 74 62 65 69 74 65 69 72 77 67 70 74 79 70 74 77 82 69 73 76 81 67 70 74 79 69 73 76 81'),
+    ch: chords({ 0: [62, 65, 69], 8: [65, 69, 72], 16: [70, 74, 77], 24: [69, 73, 76] })
+  },
+  premium: {
+    bpm: 150, k: 'x...x...x...x...x...x...x...x...', s: '....x.......x.......x.......x.x.', h: '.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x', t: 'x.......x.......x.......x.x.x.x.',
+    bass: seq('38 50 38 50 47 59 47 59 43 55 43 55 45 57 45 57 38 50 38 50 47 59 47 59 43 55 43 55 45 57 49 57'),
+    lead: seq('86 . 85 . 86 . 90 . 88 . 86 . 83 . . . 86 . 88 . 90 . 93 . 91 . 90 . 88 . . .'),
+    arp: seq('74 78 81 86 74 78 81 86 71 74 78 83 71 74 78 83 67 71 74 79 67 71 74 79 69 73 76 81 69 73 76 81'),
+    ch: chords({ 0: [62, 66, 69, 74], 8: [59, 62, 66, 71], 16: [55, 59, 62, 67], 24: [57, 61, 64, 69] })
   },
   rainbow: {
     bpm: 172, k: 'x...x...x...x...x...x...x...x.x.', s: '....x.......x.......x.......x.xx', h: '.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x.x', t: 'x.......x.......x.......x...x.x.',
@@ -694,17 +712,59 @@ const AU = {
         this.boom(t, 0.5);
         for (const [i, m] of [84, 88, 91, 96].entries()) this.o('sine', mtof(m), t + i * 0.05, 1.0, 0.07); break;
       case 'fanfare': {
-        const notes = [62, 66, 69, 74, 78, 81, 86];
-        notes.forEach((m, i) => this.o('sawtooth', mtof(m), t + i * 0.07, 0.35, 0.07, { lp: 3500 }));
-        this.chord(t + 0.5, [62, 69, 74, 78, 81], 1.8, 0.05);
-        this.boom(t + 0.5, 0.55); this.n(t + 0.5, 1.2, 0.1, { hp: 5000, a: 0.02 });
+        const br = (m, at, d, v) => { this.o('sawtooth', mtof(m), t + at, d, v || 0.07, { lp: 3200, a: 0.01 }); this.o('square', mtof(m + 12), t + at, d * 0.8, 0.022, { lp: 4200 }); };
+        [[62, 0, 0.16], [62, 0.17, 0.08], [62, 0.26, 0.08], [66, 0.35, 0.16], [69, 0.52, 0.16], [74, 0.69, 0.55]].forEach(([m, a, d]) => br(m, a, d + 0.1));
+        [[69, 1.1, 0.12], [71, 1.23, 0.12], [73, 1.36, 0.12], [74, 1.5, 1.6]].forEach(([m, a, d]) => br(m, a, d, 0.08));
+        this.chord(t + 1.5, [50, 57, 62, 66, 69, 74, 78], 2.3, 0.045);
+        for (let i = 0; i < 10; i++) this.o('sine', 98, t + 0.95 + i * 0.05, 0.25, 0.1 + i * 0.02, { to: 70 });
+        this.boom(t + 1.5, 0.8); this.n(t + 1.5, 1.6, 0.12, { hp: 5000, a: 0.02 });
         break;
       }
       case 'round': this.o('sine', 1760, t, 0.3, 0.09); this.o('sine', 2637, t + 0.08, 0.35, 0.07); break;
       case 'rushIn':
-        this.boom(t, 0.9); this.kyuin(t + 0.1);
-        this.chord(t + 0.3, [62, 66, 69, 74, 78], 2.4, 0.06);
-        [74, 78, 81, 86, 90, 93].forEach((m, i) => this.o('square', mtof(m), t + 0.3 + i * 0.06, 0.4, 0.04, { lp: 4000 }));
+        this.boom(t, 1); this.kyuin(t + 0.05);
+        this.o('sine', 55, t, 2.5, 0.35, { to: 50 }); this.n(t, 1.8, 0.14, { bp: 300, q: 0.7, a: 0.01 });
+        this.chord(t + 0.3, [50, 57, 62, 66, 69, 74, 78], 3.0, 0.05);
+        [74, 78, 81, 86, 90, 93, 98].forEach((m, i) => this.o('square', mtof(m), t + 0.3 + i * 0.07, 0.5, 0.04, { lp: 5000 }));
+        this.kyuin(t + 1.0);
+        break;
+      case 'premium':
+        this.boom(t, 1); this.o('sine', 49, t, 3.0, 0.4, { to: 45 }); this.n(t, 2.4, 0.16, { bp: 260, q: 0.6, a: 0.01 });
+        this.kyuin(t + 0.1); this.kyuin(t + 0.55); this.kyuin(t + 1.0);
+        this.chord(t + 0.2, [50, 57, 62, 66, 69, 74, 78, 81], 3.4, 0.045);
+        for (let i = 0; i < 16; i++) this.o('square', mtof([74, 78, 81, 86][i % 4] + Math.floor(i / 4) * 12 - 12), t + 0.2 + i * 0.06, 0.25, 0.035, { lp: 6000 });
+        break;
+      case 'sakibare':
+        this.o('sawtooth', 160, t, 0.6, 0.16, { to: 3200, tt: 0.55, lp: 6000 });
+        this.o('square', 320, t, 0.6, 0.06, { to: 6400, tt: 0.55, lp: 7000 });
+        this.boom(t + 0.5, 1); this.o('sine', 55, t + 0.5, 2.5, 0.35, { to: 50 }); this.n(t + 0.5, 2, 0.15, { bp: 280, q: 0.6, a: 0.01 });
+        this.kyuin(t + 0.6); this.kyuin(t + 1.0); this.kyuin(t + 1.4);
+        this.chord(t + 0.6, [62, 66, 69, 74, 78, 81, 86], 2.8, 0.05);
+        break;
+      case 'handDrop':
+        this.o('sawtooth', 300, t, 0.3, 0.08, { to: 60, lp: 1500 });
+        this.boom(t + 0.28, 1); this.boom(t + 0.36, 0.7); this.n(t + 0.28, 1.0, 0.35, { lp: 400, fto: 80 });
+        this.o('sawtooth', 70, t + 0.3, 1.2, 0.18, { to: 45, lp: 400 });
+        this.o('square', 1800, t + 0.3, 0.6, 0.04, { lp: 5000 }); this.o('square', 2390, t + 0.3, 0.7, 0.03, { lp: 6000 });
+        this.kyuin(t + 0.5);
+        break;
+      case 'nyokki':
+        this.o('sawtooth', 120, t, 0.55, 0.1, { to: 900, lp: 2500 }); this.n(t, 0.5, 0.12, { hp: 800, fto: 6000, a: 0.2 }); this.n(t + 0.5, 0.06, 0.25, { bp: 1500 });
+        break;
+      case 'nyoCol': {
+        const r = arg || 0, base = [69, 72, 74, 76, 79, 81][clamp(r, 0, 5)];
+        [0, 4, 7, 12].forEach((d, i) => this.o('sine', mtof(base + d), t + i * 0.05, 0.6 + r * 0.15, 0.06 + r * 0.01));
+        if (r >= 3) { this.boom(t, 0.5 + r * 0.1); this.kyuin(t + 0.05); }
+        if (r >= 4) this.chord(t + 0.1, [base - 12, base - 5, base], 1.8, 0.05);
+        if (r >= 5) this.play('sakibare');
+        break;
+      }
+      case 'roulTick': this.o('square', 1400, t, 0.03, 0.04, { lp: 5000 }); break;
+      case 'roulStart': this.n(t, 0.4, 0.15, { hp: 600, fto: 6000 }); this.chord(t, [62, 66, 69], 0.5, 0.04, 'square'); break;
+      case 'roulDecide': this.boom(t, 0.8); this.chord(t, [62, 66, 69, 74], 1.2, 0.05); this.o('sine', 2349, t, 0.8, 0.06); break;
+      case 'loopAdd':
+        this.kyuin(t); for (let i = 0; i < 24; i++) this.n(t + 0.2 + i * 0.03, 0.03, 0.05, { hp: 5000 });
+        this.chord(t + 0.2, [74, 78, 81, 86], 1.6, 0.05, 'square'); this.boom(t + 0.2, 0.7);
         break;
       case 'kyuin': this.kyuin(t); break;
       case 'gekiatsu': this.kyuin(t); this.boom(t + 0.05, 0.7); this.chord(t + 0.1, [50, 53, 57, 62], 1.2, 0.05); break;
@@ -767,6 +827,8 @@ const AU = {
         this.o('square', f, t, sd * 1.9, 0.055, { lp: 2600, bus: B, a: 0.01 });
         this.o('sawtooth', f, t, sd * 1.9, 0.035, { det: 9, lp: 2200, bus: B, a: 0.01 });
       }
+      if (sg.arp && sg.arp[i]) this.o('square', mtof(sg.arp[i]), t, sd * 0.9, 0.022, { lp: 3800, bus: B });
+      if (sg.ch && sg.ch[i]) for (const m of sg.ch[i]) this.o('sawtooth', mtof(m), t, sd * 3, 0.026, { lp: 2400, bus: B, a: 0.005, det: rand(-7, 7) });
       if (sg.pl && sg.pl[i]) {
         const f = mtof(sg.pl[i]);
         this.o('sawtooth', f, t, 0.7, 0.1, { lp: 3200, fto: 280, bus: B });
@@ -793,7 +855,7 @@ const ENEMY = {
 };
 const DEF_SET = {
   master: 0.8, bgm: 0.55, sfx: 0.85, nail: true, autoBtn: false, fast: false, autoLend: true,
-  autoHandle: true, zoom: true, vib: true, swapAB: false, swapXY: false, lite: false, sv: 2
+  autoHandle: true, zoom: true, vib: true, swapAB: false, swapXY: false, lite: false, sv: 2, fastBonus: true
 };
 const S = {
   balls: 0, invest: 0, power: SPEC.presetL, auto: false, holding: false, padHold: false, fireT: 0,
@@ -917,7 +979,7 @@ function makeEntry(from) {
   const e = { from, hit: Math.random() < p, rounds: 0, after: null, challenge: false };
   if (e.hit) {
     if (from === 1) { e.rounds = SPEC.hesoR; e.after = chance(SPEC.rushRate1) ? 'st' : 'jitan'; e.challenge = true; }
-    else { e.rounds = chance(SPEC.r10Rate2) ? 10 : 3; e.after = 'st'; }
+    else { e.rounds = SPEC.rushR > 0 ? SPEC.rushR : (chance(SPEC.r10Rate2) ? 10 : 3); e.after = 'st'; }
   }
   styleEntry(e, densapo() ? 'rush' : 'normal');
   return e;
@@ -928,7 +990,14 @@ function onStartIn(from) {
   const e = makeEntry(from);
   h.push(e);
   LCD.holdPop(from, h.length - 1);
+  // 虹の先バレ(RUSH確定)。前触れなく、入賞した瞬間に来る
+  if (e.hit && e.after === 'st' && from === 1 && e.style === 'normal' && e.cls !== 'RAINBOW' && chance(0.12)) { sakibare(e); return; }
   if (e.shown !== 'white') AU.play(RANK[e.shown] >= 3 ? 'holdBig' : 'hold');
+}
+function sakibare(e) {
+  e.icon = e.shown = 'rainbow'; e.saki = true;
+  AU.play('sakibare'); S.rbT = 3; UI.rbShock(); Board.shake(16); LCD.shake(14); LCD.flash('#ffffff', 0.9);
+  setLamp('rainbow', 6); fxSakibare(); vibrate([60, 40, 120]);
 }
 function preChange() {
   if (densapo()) return;
@@ -982,6 +1051,12 @@ function buildVar(e) {
     v.gim = H ? chance(0.35) : (C === 'SPSP' ? chance(0.08) : chance(0.02));
     v.button = H ? pickW({ push: 40, rapid: 20, sword: 20, lever: 20 }) : pickW({ push: 74, rapid: 22.65, sword: 3, lever: 0.35 });
     v.revival = H && chance(0.15);
+    // 鬼の大手(激アツ役物)・斬鬼刀ニョッキ(色で信頼度)
+    v.hand = H ? chance(0.3) : C === 'SPSP' ? chance(0.03) : chance(0.005);
+    v.handAt = pick(['pre', 'reach', 'battle']);
+    v.nyo = H ? chance(0.45) : chance(C === 'SPSP' ? 0.08 : 0.05);
+    v.nyoCol = H ? pickW({ blue: 10, green: 15, red: 35, gold: 30, rainbow: 10 }) : pickW({ white: 35, blue: 35, green: 20, red: 10 });
+    v.nyoAt = pick(['reach', 'final']);
   }
   return v;
 }
@@ -994,7 +1069,7 @@ function resetScene() {
   killTweens(B.hero); killTweens(B.foe); killTweens(B); killTweens(LCD);
   B.on = false; B.aura = 0; LCD.dark = 0; LCD.desat = 0; LCD.black = 0;
   S.zoomT = 0;
-  Reels.reachGlow = 0; Reels.win = 0; Reels.zen = false; Reels.rb = 0;
+  Reels.reachGlow = 0; Reels.win = 0; Reels.zen = false; Reels.rb = 0; Roul.on = false;
   LCD.rb.on = 0; LCD.freeze = 0; AU.duck(1);
   if (Reels.mini > 0.01) Reels.toBig();
 }
@@ -1036,6 +1111,7 @@ function* sNormal(v) {
   if (v.su) yield* stepUp(v.su, v.hit);
   if (v.swarm) { fxSwarm(v.swarm); AU.play('swarm'); setLamp('chance', 1.2); yield 1.5; }
   if (v.dialog) { fxDialog(v.dialog); AU.play('dialog'); yield 1.7; }
+  if (v.hand && v.handAt === 'pre') yield* handDrop();
   const el = DIR.time - t0;
   if (el < v.base) yield v.base - el;
   Reels.stop(0, v.L); yield 0.55;
@@ -1054,6 +1130,8 @@ function* stepUp(lv, hit) {
 function* sReach(v) {
   AU.play('reach'); fxReach(); setLamp('chance', 2.5); Reels.reachGlow = 1; LCD.shake(6);
   yield 0.9;
+  if (v.hand && v.handAt === 'reach') yield* handDrop();
+  if (v.nyo && v.nyoAt === 'reach') yield* nyokki(v.nyoCol);
   if (v.cls === 'N' || v.dev) {
     LCD.setBg('reachN'); AU.duck(0.45);
     Reels.slowTo(1, 7); yield 1.2;
@@ -1129,6 +1207,8 @@ function* sBattle(v) {
   if (v.gim) { Gimmick.drop(); AU.play('gimmick'); setLamp('gold', 2.5); LCD.shake(14); yield 2.0; }
   if (v.gek) { fxGekiatsu(v.gek); AU.play('gekiatsu'); setLamp(v.gek === 'gold' ? 'gold' : 'red', 2); yield 1.7; }
   if (v.cutin) { fxCutin(v.cutin); AU.play('cutin'); yield 1.4; }
+  if (v.hand && v.handAt === 'battle') yield* handDrop();
+  if (v.nyo && v.nyoAt === 'final') yield* nyokki(v.nyoCol);
   yield* finale(v.button);
   yield* clash();
   if (v.hit && !v.revival) yield* winSeq(v);
@@ -1138,6 +1218,23 @@ function* sBattle(v) {
     else yield* missEnd(v);
   }
   S.zoomT = 0;
+}
+function* handDrop(col) {
+  Hand.drop(col || 'red'); AU.play('handDrop');
+  yield 0.3;
+  Board.shake(20); LCD.shake(18); LCD.flash(col === 'rainbow' ? '#ffffff' : '#ff2a1a', 0.6);
+  setLamp(col === 'rainbow' ? 'rainbow' : 'red', 2.5); vibrate([80, 30, 80]);
+  fxStamp('激アツ', { size: 70, col: col === 'rainbow' ? 'rainbow' : 'red', y: LH * 0.8, life: 1.4 });
+  yield 1.9;
+}
+function* nyokki(col) {
+  Nyo.start(col); AU.play('nyokki');
+  yield 0.7;
+  const r = RANK[col];
+  AU.play('nyoCol', r); LCD.shake(4 + r * 3); Board.shake(r >= 3 ? 10 : 3);
+  setLamp(col === 'rainbow' ? 'rainbow' : r >= 4 ? 'gold' : r >= 3 ? 'red' : 'chance', 1.6);
+  if (col === 'rainbow') { S.rbT = 2.5; UI.rbShock(); }
+  yield 1.5;
 }
 function* finale(btn) {
   const B = LCD.bt;
@@ -1376,29 +1473,53 @@ function updateBonus(dt) {
     if (b.count >= SPEC.atkMax || b.t >= SPEC.roundTime) { b.phase = b.round >= b.rounds ? 'tail' : 'interval'; b.t = 0; }
   } else if (b.phase === 'interval') {
     b.t += dt;
-    if (b.t >= SPEC.interval) { b.round++; b.count = 0; b.t = 0; b.phase = 'open'; AU.play('round'); }
+    if (b.t >= (S.set.fastBonus ? 0.5 : SPEC.interval)) { b.round++; b.count = 0; b.t = 0; b.phase = 'open'; AU.play('round'); }
   } else if (b.phase === 'tail') {
     b.t += dt;
     if (b.t >= 1.4) { b.phase = 'ending'; DIR.run(sBonusEnd(b), () => finishBonus(b)); }
   }
 }
+const ROUL_TXT = { tengu: '天狗 ── 突破期待度 ★★★★', orochi: '大蛇 ── 突破期待度 ★★★', kyubi: '九尾 ── 突破期待度 ★★', shuten: '酒呑童子 ── 突破期待度 ★' };
 function* sBonusEnd(b) {
-  if (b.challenge) {
+  if (b.challenge && !b.chDone) {
+    b.chDone = true;
     const ok = b.after === 'st', B = LCD.bt;
     resetScene(); Reels.toMini();
-    AU.bgm('boss'); LCD.setBg('shuten'); setupBattle('shuten');
+    AU.bgm('boss'); LCD.setBg('challenge');
     if (S.set.zoom) S.zoomT = 1;
-    fxBand('最終決戦', { col: 'red', big: true }); AU.play('boom', 0.8); LCD.shake(12);
-    yield 1.5;
-    yield* exchange('shuten', 1);
+    fxBand('RUSH突入をかけた最終決戦', { col: 'red', big: true, life: 1.6 }); AU.play('boom', 0.8); LCD.shake(12);
+    yield 1.6;
+    // 敵選択ルーレット(弱い敵ほど突破期待度が高い)
+    const en = pickW(ok ? { tengu: 40, orochi: 30, kyubi: 20, shuten: 10 } : { tengu: 10, orochi: 20, kyubi: 30, shuten: 40 });
+    Roul.start(); AU.play('roulStart');
+    yield { btn: 6, type: 'push' };
+    Roul.stopAt(en);
+    yield { until: () => Roul.done };
+    AU.play('roulDecide'); LCD.flash(ENEMY[en].col, 0.6); LCD.shake(10);
+    fxText(ROUL_TXT[en], { size: 18, y: LH * 0.88, life: 1.5, col: '#ffe6a8' });
+    yield 1.6;
+    Roul.on = false;
+    LCD.setBg(ENEMY[en].bg); setupBattle(en);
+    yield 0.9;
+    fxEnemyName(en); AU.play('boom', 0.7);
+    yield 1.4;
+    yield* exchange(en, 1);
     yield* finale(ok ? pickW({ push: 45, sword: 25, rapid: 10, lever: 20 }) : pickW({ push: 79, rapid: 20, lever: 1 }));
     yield* clash();
     if (ok) {
-      AU.duck(1); AU.play('kill'); tween(B.foe, { split: 1 }, 1.0, E.outC); fxSplat(B.foe.x, B.foe.y - 70, ENEMY.shuten.col);
+      AU.duck(1); AU.play('kill'); tween(B.foe, { split: 1 }, 1.0, E.outC); fxSplat(B.foe.x, B.foe.y - 70, ENEMY[en].col);
       LCD.shake(14); setLamp('rainbow', 3);
       fxStamp('突破', { size: 100, col: 'rainbow', life: 1.3 });
       yield 1.1;
-      B.on = false; LCD.setBg('rush'); AU.play('rushIn'); LCD.flash('#ffe08a', 1); vibrate(150);
+      B.on = false; LCD.flash('#ffe08a', 1); vibrate(150);
+      if (SPEC.hesoRushR > b.rounds) {
+        LCD.setBg('rainbow'); AU.bgm(null); AU.play('premium'); S.rbT = 2.5; UI.rbShock(); Hand.drop('rainbow'); Board.shake(16);
+        fxPremium(fmt(SPEC.hesoRushR * SPEC.atkMax * SPEC.atkPay), 'PREMIUM BONUS');
+        yield 3.2;
+        b.rounds = SPEC.hesoRushR; b.premium = true; b.extend = true; S.zoomT = 0;
+        return;
+      }
+      LCD.setBg('rush'); AU.play('rushIn');
       fxBand('百鬼討滅RUSH', { col: 'gold', big: true, life: 2.8 });
       fxText('ST' + SPEC.stCount + '回 / 継続率 約' + contPct() + '%', { size: 22, y: LH * 0.66, life: 2.6 });
       yield 2.9;
@@ -1411,14 +1532,38 @@ function* sBonusEnd(b) {
       yield 2.6;
     }
     S.zoomT = 0;
-  } else {
-    fxBand('BONUS終了', { col: 'gold', life: 2.4 });
-    fxText('獲得 ' + fmt(b.pay) + '個', { size: 30, y: LH * 0.62, life: 2.4 });
-    AU.play('round');
-    yield 2.4;
+    return;
   }
+  // 百鬼MAXループ(RUSH中の大当り後、鬼の大手が落ちるたびに上乗せ)
+  if (!b.challenge && SPEC.loop > 0 && (b.loops || 0) < 2 && chance(SPEC.loop)) {
+    b.loops = (b.loops || 0) + 1;
+    resetScene(); Reels.win = 1; Reels.toMini(); LCD.setBg('rainbow');
+    yield* handDrop('rainbow');
+    AU.play('loopAdd'); AU.bgm('premium');
+    const add = SPEC.rushR > 0 ? SPEC.rushR : 10;
+    fxPremium('+' + fmt(add * SPEC.atkMax * SPEC.atkPay), '百鬼MAXループ ×' + b.loops);
+    yield 2.6;
+    b.rounds += add; b.extend = true;
+    return;
+  }
+  if (b.premium) {
+    LCD.setBg('rush'); AU.play('rushIn');
+    fxBand('百鬼討滅RUSH 突入', { col: 'gold', big: true, life: 2.6 });
+    fxText('獲得 ' + fmt(b.pay) + '個', { size: 30, y: LH * 0.64, life: 2.4 });
+    yield 2.7;
+    return;
+  }
+  fxBand('BONUS終了', { col: 'gold', life: 2.4 });
+  fxText('獲得 ' + fmt(b.pay) + '個', { size: 30, y: LH * 0.62, life: 2.4 });
+  AU.play('round');
+  yield 2.4;
 }
 function finishBonus(b) {
+  if (b.extend) {
+    b.extend = false; b.phase = 'interval'; b.t = 0;
+    resetScene(); Reels.win = 1; Reels.toMini(); LCD.setBg('bonus'); AU.bgm('premium');
+    return;
+  }
   const d = S.data;
   if (b.challenge) {
     if (b.after === 'st') { d.chain = 1; d.chainPay = b.pay; } else { d.chain = 0; d.chainPay = 0; }
@@ -1471,7 +1616,7 @@ function updateFire(dt) {
     else { if (S.auto) { S.auto = false; UI.toast('玉がありません。玉貸ボタンを押してください'); } return; }
   }
   if (!WORLD.launcherClear()) return;
-  S.balls--; WORLD.launch(S.power); S.fireT = SPEC.fireInterval;
+  S.balls--; WORLD.launch(S.power); S.fireT = (S.bonus && S.set.fastBonus) ? 0.16 : SPEC.fireInterval;
   AU.play('launch');
 }
 function pay(n) { S.balls += n; UI.bump(); }
@@ -1609,6 +1754,7 @@ const LCD = {
     for (let i = 0; i < 4; i++) this.holdFx[i] = Math.max(0, this.holdFx[i] - dt * 1.4);
     for (let i = 0; i < 8; i++) this.pop[i] = Math.max(0, this.pop[i] - dt * 3);
     this.bt.foe.hurt = Math.max(0, this.bt.foe.hurt - dt * 3);
+    Roul.update(dt);
     for (let i = this.fx.length - 1; i >= 0; i--) { const f = this.fx[i]; f.t += dt; if (f.t >= f.life) this.fx.splice(i, 1); }
     const P = this.parts;
     for (let i = P.length - 1; i >= 0; i--) {
@@ -1951,6 +2097,76 @@ function drawRainbowScene(ctx, t) {
   }
   drawAura(ctx, LW * 0.2, LH * 0.62, 'hsla(' + ((t * 200) % 360) + ',100%,60%,0.9)', 1, t, 110);
   drawHero(ctx, { x: LW * 0.2, y: LH * 0.97, rot: 0, a: 1, pose: cut > 0 ? 'slash' : 'ready', rb: 1 }, t, 1.3);
+}
+
+/* ---------- 先バレ・PREMIUM・ルーレット ---------- */
+function fxSakibare() {
+  return addFx({
+    life: 2.4, layer: 2, draw(ctx, f) {
+      const t = f.t, k = clamp(t / 0.14, 0, 1), a = clamp((f.life - t) / 0.5, 0, 1);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      rays(ctx, LW / 2, LH / 2, 24, 'hsl(' + ((t * 400) % 360) + ',100%,60%)', t * 4, 0.35 * a);
+      ctx.restore();
+      ctx.save(); ctx.globalAlpha = a;
+      const sc = lerp(3, 1, E.outB(k));
+      ctx.translate(LW / 2, LH * 0.42); ctx.scale(sc, sc);
+      stampText(ctx, '確定', 0, 0, 96, 'rainbow', F_BRUSH, t);
+      stampText(ctx, 'RUSH', 0, 60, 30, 'gold', F_GOTH, t);
+      ctx.restore();
+    }
+  });
+}
+function fxPremium(num, label) {
+  return addFx({
+    life: 3.0, layer: 2, draw(ctx, f) {
+      const t = f.t, k = E.outB(clamp(t / 0.25, 0, 1)), a = clamp((f.life - t) / 0.4, 0, 1);
+      ctx.save(); ctx.globalAlpha = a;
+      stampText(ctx, label, LW / 2, LH * 0.2, 24, 'gold', F_GOTH, t);
+      let sz = 84; ctx.font = '400 ' + sz + 'px ' + F_GOTH;
+      const w = ctx.measureText(num).width * 1.12; if (w > LW - 24) sz = sz * (LW - 24) / w;
+      const sc = lerp(2.2, 1, k);
+      ctx.translate(LW / 2, LH * 0.54); ctx.scale(sc, sc);
+      stampText(ctx, num, 0, 0, sz, 'rainbow', F_GOTH, t);
+      ctx.restore();
+    }
+  });
+}
+const ROUL_EN = ['tengu', 'orochi', 'kyubi', 'shuten'];
+const Roul = {
+  on: false, idx: 0, acc: 0, spd: 14, left: 0, stopping: false, done: false, sel: -1,
+  start() { this.on = true; this.idx = randi(0, 3); this.acc = 0; this.spd = 14; this.stopping = false; this.done = false; this.sel = -1; },
+  stopAt(en) { const ti = Math.max(0, ROUL_EN.indexOf(en)); this.left = ((ti - this.idx + 4) % 4) + 8; this.stopping = true; },
+  update(dt) {
+    if (!this.on || this.done) return;
+    this.acc += dt * this.spd;
+    while (this.acc >= 1 && !this.done) {
+      this.acc -= 1; this.idx = (this.idx + 1) % 4; AU.play('roulTick');
+      if (this.stopping) { this.left--; this.spd = Math.max(2.4, this.spd * 0.8); if (this.left <= 0) { this.done = true; this.sel = this.idx; } }
+    }
+  }
+};
+function drawRoul(ctx, t) {
+  stampText(ctx, '討伐する鬼を決めろ!', LW / 2, 22, 20, 'gold', F_MIN, t);
+  for (let i = 0; i < 4; i++) {
+    const en = ROUL_EN[i], D = ENEMY[en], x = LW * (0.14 + i * 0.24), y = LH * 0.44, w = 70, h = 104;
+    const on = Roul.idx === i, fin = Roul.done && Roul.sel === i, dim = Roul.done && !fin;
+    const sc = fin ? 1.12 + 0.04 * Math.sin(t * 12) : on ? 1.06 : 0.94, al = dim ? 0.35 : (on || fin) ? 1 : 0.62;
+    ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); ctx.globalAlpha = al;
+    if (fin) { const gg = ctx.createRadialGradient(0, 0, 10, 0, 0, 90); gg.addColorStop(0, 'rgba(255,220,120,0.6)'); gg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = gg; ctx.fillRect(-90, -90, 180, 180); }
+    ctx.fillStyle = 'rgba(0,0,0,0.78)'; ctx.fillRect(-w / 2, -h / 2, w, h);
+    const g = ctx.createLinearGradient(0, -h / 2, 0, h / 2); g.addColorStop(0, D.col); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = al * 0.4; ctx.fillStyle = g; ctx.fillRect(-w / 2, -h / 2, w, h); ctx.globalAlpha = al;
+    ctx.save(); ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.clip();
+    drawEnemy(ctx, { enemy: en, foe: { x: 0, y: h / 2 - 6, s: en === 'shuten' ? 0.42 : 0.5, a: al, hurt: 0, split: 0, lunge: 0 } }, t);
+    ctx.restore();
+    ctx.globalAlpha = al;
+    ctx.strokeStyle = (on || fin) ? '#ffd36b' : '#6a4a20'; ctx.lineWidth = (on || fin) ? 3 : 1.5; ctx.strokeRect(-w / 2, -h / 2, w, h);
+    ctx.font = '800 12px ' + F_MIN; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffffff';
+    ctx.fillText(D.name, 0, h / 2 + 10);
+    ctx.font = '400 10px ' + F_GOTH; ctx.fillStyle = '#ffd36b'; ctx.fillText('★★★★'.slice(0, 4 - i), 0, -h / 2 - 8);
+    ctx.restore();
+  }
 }
 
 /* ==========================================================
@@ -2530,7 +2746,8 @@ function drawHUD(ctx, t) {
     ctx.fillText('ROUND ' + Math.max(1, b.round) + '/' + b.rounds, LW - 140, 21);
     ctx.font = '800 12px ' + F_MIN; ctx.fillStyle = '#ffffff';
     ctx.fillText('カウント ' + Math.min(b.count, 99) + '/' + SPEC.atkMax + '   獲得 ' + fmt(b.pay), LW - 140, 40);
-    if (b.challenge) {
+    if (b.premium || b.loops) stampText(ctx, b.premium ? 'PREMIUM' : 'MAXループ ×' + b.loops, LW - 78, 68, 15, 'rainbow', F_GOTH, t);
+    if (b.challenge && !b.chDone) {
       const rem = b.rounds - Math.max(1, b.round) + (b.phase === 'open' ? 1 : 0);
       stampText(ctx, rem > 0 ? '決戦まで あと' + rem + 'R' : '決戦へ', LW / 2, LH * 0.5, 24, 'red', F_MIN, t);
     }
@@ -2549,7 +2766,10 @@ function drawHUD(ctx, t) {
     ctx.fillText(S.warnWhich === 'right' ? '右打ちしてください' : '左打ちに戻してください', LW / 2, LH * 0.62 + 15);
     ctx.globalAlpha = 1;
   }
-  if (Push.active) drawPushPrompt(ctx, t);
+  if (Push.active) {
+    if (Roul.on) { ctx.save(); ctx.translate(LW / 2, LH * 0.9); ctx.scale(0.45, 0.45); ctx.translate(-LW / 2, -LH * 0.56); drawPushPrompt(ctx, t); ctx.restore(); }
+    else drawPushPrompt(ctx, t);
+  }
   ctx.restore();
 }
 function drawLeverPrompt(ctx, t, k) {
@@ -2621,8 +2841,9 @@ function drawLCD(ctx, t, pxScale) {
   drawParts(ctx, t);
   if (L.bt.on) drawBattle(ctx, t);
   if (L.rb.on) drawRainbowScene(ctx, t);
+  if (Roul.on) drawRoul(ctx, t);
   for (const f of L.fx) if (f.layer === 1) f.draw(ctx, f);
-  drawReels(ctx, t);
+  if (!Roul.on || Reels.mini > 0.5) drawReels(ctx, t);
   drawHUD(ctx, t);
   for (const f of L.fx) if (f.layer === 2) f.draw(ctx, f);
   if (L.desat > 0.01) {
@@ -2645,8 +2866,25 @@ const ZOOM = BW / (LC.w + 20), LCDCX = LC.x + LC.w / 2, LCDCY = LC.y + LC.h / 2;
 const R = { cv: null, ctx: null, scale: 1, cache: null, ball: null };
 const Board = {
   fl: { heso: 0, den: 0, atk: 0, gate: 0, warp: 0, stageC: 0 },
+  shk: 0,
   flash(k) { this.fl[k] = 1; },
-  update(dt) { for (const k in this.fl) this.fl[k] = Math.max(0, this.fl[k] - dt * 2.5); }
+  shake(a) { this.shk = Math.max(this.shk, a); },
+  update(dt) { for (const k in this.fl) this.fl[k] = Math.max(0, this.fl[k] - dt * 2.5); this.shk = Math.max(0, this.shk - dt * 40); }
+};
+const Hand = {
+  st: 'up', t: 0, y: 0, col: 'red',
+  drop(col) { this.st = 'drop'; this.t = 0; this.col = col || 'red'; },
+  update(dt) {
+    if (this.st === 'up') return;
+    this.t += dt;
+    if (this.st === 'drop') { this.y = E.outB(Math.min(1, this.t / 0.32)); if (this.t > 2.0) { this.st = 'rise'; this.t = 0; } }
+    else if (this.st === 'rise') { this.y = 1 - E.ioC(Math.min(1, this.t / 0.5)); if (this.t >= 0.5) { this.st = 'up'; this.y = 0; } }
+  }
+};
+const Nyo = {
+  st: 'off', t: 0, col: 'white',
+  start(col) { this.st = 'on'; this.t = 0; this.col = col; },
+  update(dt) { if (this.st === 'off') return; this.t += dt; if (this.t > 2.3) this.st = 'off'; }
 };
 const Gimmick = {
   y: 0, st: 'up', t: 0,
@@ -2864,6 +3102,81 @@ function drawRbBoard(g, t) {
   if (k > 0.75) { g.fillStyle = 'hsla(' + ((t * 600) % 360) + ',100%,60%,' + ((k - 0.75) * 1.2) + ')'; g.fillRect(0, 0, BW, BH); }
   g.restore();
 }
+// 鬼の大手(上から落下する激アツ役物)
+function drawHand(g, t) {
+  if (Hand.y <= 0.01) return;
+  const rb = Hand.col === 'rainbow';
+  const shk = Hand.st === 'drop' && Hand.t < 1.2 ? Math.sin(t * 70) * 3 * (1 - Hand.t / 1.2) : 0;
+  g.save(); g.translate(300 + shk, lerp(-230, 178, Hand.y)); g.rotate(0.06); g.scale(1.18, 1.18);
+  const hue = (t * 200) % 360;
+  const glow = g.createRadialGradient(0, 40, 20, 0, 40, 200);
+  glow.addColorStop(0, rb ? 'hsla(' + hue + ',100%,65%,0.6)' : 'rgba(255,40,30,0.55)'); glow.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = glow; g.fillRect(-210, -160, 420, 400);
+  const skin = g.createLinearGradient(-90, -220, 90, 160);
+  if (rb) { skin.addColorStop(0, 'hsl(' + hue + ',75%,48%)'); skin.addColorStop(0.5, 'hsl(' + ((hue + 120) % 360) + ',75%,42%)'); skin.addColorStop(1, 'hsl(' + ((hue + 240) % 360) + ',75%,36%)'); }
+  else { skin.addColorStop(0, '#4a0812'); skin.addColorStop(0.45, '#b4182e'); skin.addColorStop(1, '#5a0a16'); }
+  const edge = rb ? '#ffffff' : '#ff7a6a';
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  // 腕と腕輪
+  g.fillStyle = skin; g.strokeStyle = edge; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(-46, -300); g.lineTo(46, -300); g.lineTo(54, -80); g.lineTo(-54, -80); g.closePath(); g.fill(); g.stroke();
+  g.fillStyle = '#d8b25a'; g.fillRect(-60, -112, 120, 20); g.strokeStyle = '#6a4a10'; g.lineWidth = 2; g.strokeRect(-60, -112, 120, 20);
+  g.fillStyle = '#7a5a20'; for (let i = -48; i <= 48; i += 16) { g.beginPath(); g.arc(i, -102, 3, 0, TAU); g.fill(); }
+  // 手のひら
+  g.fillStyle = skin; g.strokeStyle = edge; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(-62, -86); g.quadraticCurveTo(-82, -20, -60, 30); g.lineTo(60, 30); g.quadraticCurveTo(82, -20, 62, -86); g.closePath(); g.fill(); g.stroke();
+  // 指(手のひらから下へ大きく伸びる)と爪
+  const fingers = [[-50, 18, -78, 128], [-18, 26, -26, 162], [16, 26, 22, 164], [48, 18, 70, 132], [-66, -30, -126, 46]];
+  for (const [bx, by, tx, ty] of fingers) {
+    const mx = (bx + tx) / 2 + (tx - bx) * 0.2, my = (by + ty) / 2 - 10;
+    g.strokeStyle = '#1a0206'; g.lineWidth = 34; g.beginPath(); g.moveTo(bx, by); g.quadraticCurveTo(mx, my, tx, ty); g.stroke();
+    g.strokeStyle = skin; g.lineWidth = 27; g.beginPath(); g.moveTo(bx, by); g.quadraticCurveTo(mx, my, tx, ty); g.stroke();
+    g.strokeStyle = rb ? 'rgba(255,255,255,0.35)' : 'rgba(255,140,120,0.35)'; g.lineWidth = 3;
+    for (const k of [0.38, 0.68]) { const qx = lerp(lerp(bx, mx, k), lerp(mx, tx, k), k), qy = lerp(lerp(by, my, k), lerp(my, ty, k), k); g.beginPath(); g.moveTo(qx - 10, qy); g.lineTo(qx + 10, qy); g.stroke(); }
+    const ang = Math.atan2(ty - my, tx - mx);
+    g.save(); g.translate(tx, ty); g.rotate(ang - Math.PI / 2);
+    g.fillStyle = '#0a0204'; g.beginPath(); g.moveTo(-11, -4); g.quadraticCurveTo(-2, 30, 4, 40); g.quadraticCurveTo(9, 18, 11, -4); g.closePath(); g.fill();
+    g.strokeStyle = rb ? 'hsl(' + ((hue + 180) % 360) + ',100%,70%)' : '#ffcf4a'; g.lineWidth = 1.6; g.stroke();
+    g.restore();
+  }
+  // 手のひらの紋と光る眼
+  g.strokeStyle = rb ? 'rgba(255,255,255,0.5)' : 'rgba(255,120,100,0.5)'; g.lineWidth = 2;
+  for (const x of [-30, 0, 30]) { g.beginPath(); g.moveTo(x, -70); g.quadraticCurveTo(x + 8, -36, x - 4, 4); g.stroke(); }
+  g.save(); g.globalCompositeOperation = 'lighter';
+  const eg = g.createRadialGradient(0, -32, 0, 0, -32, 30); eg.addColorStop(0, '#ffffff'); eg.addColorStop(0.4, rb ? 'hsl(' + hue + ',100%,65%)' : '#ffd23a'); eg.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = eg; g.fillRect(-30, -62, 60, 60);
+  g.restore();
+  g.restore();
+}
+// 斬鬼刀(下からニョッキと出て、色で信頼度を示す役物)
+function drawNyo(g, t) {
+  if (Nyo.st === 'off') return;
+  const T = Nyo.t, c = Nyo.col, rb = c === 'rainbow', r = RANK[c] || 0;
+  const rise = T < 0.45 ? E.outB(T / 0.45) : T > 1.95 ? 1 - E.inC(Math.min(1, (T - 1.95) / 0.35)) : 1;
+  const lit = T > 0.7 ? Math.min(1, (T - 0.7) / 0.15) : 0;
+  const cx = 300, top = lerp(470, 212, rise) + (T > 0.45 && T < 0.7 ? Math.sin(t * 60) * 2 : 0);
+  const cc = rb ? 'hsl(' + ((t * 300) % 360) + ',100%,62%)' : (COL[c] || COL.white)[1];
+  g.save(); g.beginPath(); g.rect(LC.x, LC.y, LC.w, 432 - LC.y); g.clip();
+  if (lit > 0) {
+    g.save(); g.globalCompositeOperation = 'lighter'; g.translate(cx, top); g.rotate(t * 1.5);
+    const n = 10 + r * 2, R2 = 70 + r * 30;
+    g.globalAlpha = lit * (0.35 + r * 0.08); g.fillStyle = cc;
+    for (let i = 0; i < n; i++) { const a = i / n * TAU; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R2, a, a + TAU / n / 2); g.closePath(); g.fill(); }
+    g.restore();
+  }
+  const bg = g.createLinearGradient(cx - 10, 0, cx + 10, 0); bg.addColorStop(0, '#8a8a92'); bg.addColorStop(0.5, '#ffffff'); bg.addColorStop(1, '#5a5a62');
+  g.fillStyle = bg; g.fillRect(cx - 9, top + 30, 18, 240);
+  g.fillStyle = '#d8b25a';
+  for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; g.beginPath(); g.moveTo(cx + Math.cos(a) * 34, top + Math.sin(a) * 34); g.lineTo(cx + Math.cos(a + 0.2) * 48, top + Math.sin(a + 0.2) * 48); g.lineTo(cx + Math.cos(a + 0.4) * 34, top + Math.sin(a + 0.4) * 34); g.fill(); }
+  g.fillStyle = '#1a0406'; g.strokeStyle = '#d8b25a'; g.lineWidth = 3; g.beginPath(); g.arc(cx, top, 36, 0, TAU); g.fill(); g.stroke();
+  const gem = g.createRadialGradient(cx - 8, top - 8, 2, cx, top, 28);
+  if (lit > 0) { gem.addColorStop(0, '#ffffff'); gem.addColorStop(0.5, cc); gem.addColorStop(1, rb ? 'hsl(' + ((t * 300 + 180) % 360) + ',100%,30%)' : (COL[c] || COL.white)[1]); }
+  else { gem.addColorStop(0, '#5a5a62'); gem.addColorStop(1, '#16161a'); }
+  g.fillStyle = gem; g.beginPath(); g.arc(cx, top, 27, 0, TAU); g.fill();
+  g.font = '400 30px ' + F_BRUSH; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,0.7)'; g.strokeText('斬', cx, top + 2); g.fillStyle = lit > 0 ? '#ffffff' : '#8a8a90'; g.fillText('斬', cx, top + 2);
+  g.restore();
+}
 function drawMask(g, t) {
   if (Gimmick.y <= 0.5) return;
   g.save();
@@ -2951,10 +3264,11 @@ function render() {
   const g = R.ctx, t = LCD.t, z = 1 + S.zoom * (ZOOM - 1);
   if (!g || !R.cache) return;
   const px = lerp(BW / 2, LCDCX, S.zoom), py = lerp(BH / 2, LCDCY, S.zoom), ty = lerp(BH / 2, BH * 0.42, S.zoom);
+  const sx = (Math.random() - 0.5) * Board.shk * R.scale, sy = (Math.random() - 0.5) * Board.shk * R.scale;
   g.setTransform(1, 0, 0, 1, 0, 0);
-  if (S.zoom < 0.001) g.drawImage(R.cache, 0, 0);
-  else { g.fillStyle = '#090304'; g.fillRect(0, 0, R.cv.width, R.cv.height); }
-  g.setTransform(R.scale * z, 0, 0, R.scale * z, R.scale * (BW / 2 - px * z), R.scale * (ty - py * z));
+  if (Board.shk > 0 || S.zoom >= 0.001) { g.fillStyle = '#090304'; g.fillRect(0, 0, R.cv.width, R.cv.height); }
+  if (S.zoom < 0.001) g.drawImage(R.cache, sx, sy);
+  g.setTransform(R.scale * z, 0, 0, R.scale * z, R.scale * (BW / 2 - px * z) + sx, R.scale * (ty - py * z) + sy);
   if (S.zoom >= 0.001) g.drawImage(R.cache, 0, 0, BW, BH);
   drawLamps(g, t);
   if (S.rbT > 0) drawRbBoard(g, t);
@@ -2962,7 +3276,9 @@ function render() {
   drawLCD(g, t, R.scale * z);
   g.restore();
   drawMask(g, t);
+  drawNyo(g, t);
   drawDynamic(g, t);
+  drawHand(g, t);
   const gl = g.createLinearGradient(0, 0, BW, BH);
   gl.addColorStop(0, 'rgba(255,255,255,0.07)'); gl.addColorStop(0.3, 'rgba(255,255,255,0)'); gl.addColorStop(0.62, 'rgba(255,255,255,0)'); gl.addColorStop(0.7, 'rgba(255,255,255,0.05)'); gl.addColorStop(0.78, 'rgba(255,255,255,0)');
   g.fillStyle = gl; g.beginPath(); g.arc(PHYS.CX, PHYS.CY, PHYS.RAIL_R, 0, TAU); g.fill();
@@ -3062,7 +3378,7 @@ function bindSettings() {
   });
 }
 /* ---------- 台のスペック ---------- */
-const SP_FIELDS = { pN: '#spN', pS: '#spS', st: '#spST', jt: '#spJT', rush: '#spRush', r10: '#spR10', hesoR: '#spHR' };
+const SP_FIELDS = { pN: '#spN', pS: '#spS', st: '#spST', jt: '#spJT', rush: '#spRush', r10: '#spR10', hesoR: '#spHR', hrR: '#spHRR', rR: '#spRR', loop: '#spLoop' };
 function specFill(o) {
   for (const k in SP_FIELDS) { const el = $(SP_FIELDS[k]); if (el) el.value = o[k]; }
   specPreview();
@@ -3083,9 +3399,9 @@ function specTable() {
   el.innerHTML =
     '<tr><th>スペック</th><td>' + name + '</td></tr>' +
     '<tr><th>大当り確率</th><td>1/' + s.pN + '(RUSH中 1/' + s.pS + ')</td></tr>' +
-    '<tr><th>ヘソ大当り</th><td>' + s.hesoR + 'R(約' + fmt(s.hesoR * SPEC.atkMax * SPEC.atkPay) + '個)+ RUSH突入チャレンジ。突入率' + s.rush + '%、失敗時は' + (s.jt > 0 ? '時短' + s.jt + '回' : '通常') + '</td></tr>' +
+    '<tr><th>ヘソ大当り</th><td>' + s.hesoR + 'R(約' + fmt(s.hesoR * SPEC.atkMax * SPEC.atkPay) + '個)+ RUSH突入チャレンジ(敵選択ルーレット)。突入率' + s.rush + '%' + (s.hrR > s.hesoR ? '・突入時は合計' + s.hrR + 'R(約' + fmt(s.hrR * SPEC.atkMax * SPEC.atkPay) + '個)のPREMIUM' : '') + '、失敗時は' + (s.jt > 0 ? '時短' + s.jt + '回' : '通常') + '</td></tr>' +
     '<tr><th>百鬼討滅RUSH</th><td>ST' + s.st + '回・継続率 約' + contPct() + '%</td></tr>' +
-    '<tr><th>電チュー大当り</th><td>10R(約1500個)' + s.r10 + '% / 3R(約450個)' + (100 - s.r10) + '%</td></tr>' +
+    '<tr><th>RUSH中大当り</th><td>' + (s.rR > 0 ? s.rR + 'R(約' + fmt(s.rR * SPEC.atkMax * SPEC.atkPay) + '個)' : '10R(約1500個)' + s.r10 + '% / 3R(約450個)' + (100 - s.r10) + '%') + (s.loop > 0 ? '。終了時に' + s.loop + '%で百鬼MAXループ(最大2回上乗せ)' : '') + '</td></tr>' +
     '<tr><th>賞球</th><td>ヘソ3個・電チュー1個・アタッカー15個・一般入賞3個</td></tr>' +
     '<tr><th>貸玉</th><td>500円で125玉(4円パチンコ)</td></tr>';
 }
@@ -3312,6 +3628,7 @@ function update(dt) {
   if (S.started) tryStart(ldt);
   S.lampOT = Math.max(0, S.lampOT - dt);
   S.rbT = Math.max(0, S.rbT - dt);
+  Hand.update(ldt); Nyo.update(ldt);
   const zt = S.set.zoom ? S.zoomT : 0;
   S.zoom += (zt - S.zoom) * Math.min(1, dt * 4);
   if (zt === 0 && S.zoom < 0.002) S.zoom = 0;
@@ -3351,7 +3668,7 @@ function init() {
   $('#cont').textContent = (S.data.total > 0 || S.balls > 0) ? '前回のデータを引き継いで遊べます(持ち玉 ' + fmt(S.balls) + '玉)' : '';
   document.addEventListener('visibilitychange', () => { if (document.hidden) { saveGame(); S.holding = false; } else last = 0; });
   window.addEventListener('pagehide', saveGame);
-  if (/[?&]debug/.test(location.search)) window.__z = { S, WORLD, DIR, LCD, Reels, Push, update, render, styleEntry, makeEntry, startVariation, SPEC, BOARD, saveGame, loadGame };
+  if (/[?&]debug/.test(location.search)) window.__z = { S, WORLD, DIR, LCD, Reels, Push, update, render, styleEntry, makeEntry, startVariation, SPEC, BOARD, saveGame, loadGame, Hand, Nyo, Roul, sakibare, applySpec, SPEC_PRESETS, onStartIn, fxPremium, Board };
   requestAnimationFrame(loop);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

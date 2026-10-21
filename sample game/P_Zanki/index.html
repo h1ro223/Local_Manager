@@ -111,6 +111,7 @@
       <label class="tog"><span>玉切れ時に自動で玉貸</span><input type="checkbox" data-k="autoLend"><i></i></label>
       <label class="tog"><span>大当り・RUSH中は自動で右打ちに切り替え</span><input type="checkbox" data-k="autoHandle"><i></i></label>
       <label class="tog"><span>振動(対応端末のみ)</span><input type="checkbox" data-k="vib"><i></i></label>
+      <label class="tog"><span>大当り中は高速消化(多ラウンド向け)</span><input type="checkbox" data-k="fastBonus"><i></i></label>
       <label class="tog"><span>軽量モード(古い端末向け)</span><input type="checkbox" data-k="lite"><i></i></label>
     </div>
     <div class="set-group">
@@ -127,7 +128,10 @@
       <label class="field"><span>時短回数(チャレンジ失敗時)</span><input id="spJT" type="number" inputmode="numeric" min="0" max="999" step="1"></label>
       <label class="field"><span>RUSH突入率(%)</span><input id="spRush" type="number" inputmode="numeric" min="0" max="100" step="1"></label>
       <label class="field"><span>電チュー大当りの10R比率(%)</span><input id="spR10" type="number" inputmode="numeric" min="0" max="100" step="1"></label>
-      <label class="field"><span>ヘソ大当りのラウンド数</span><input id="spHR" type="number" inputmode="numeric" min="1" max="10" step="1"></label>
+      <label class="field"><span>ヘソ大当りのラウンド数</span><input id="spHR" type="number" inputmode="numeric" min="1" max="60" step="1"></label>
+      <label class="field"><span>RUSH突入時の合計ラウンド(PREMIUM)</span><input id="spHRR" type="number" inputmode="numeric" min="1" max="60" step="1"></label>
+      <label class="field"><span>RUSH中大当りのラウンド(0=10R/3R振り分け)</span><input id="spRR" type="number" inputmode="numeric" min="0" max="60" step="1"></label>
+      <label class="field"><span>MAXループ継続率(%)</span><input id="spLoop" type="number" inputmode="numeric" min="0" max="90" step="1"></label>
       <p id="spCont" class="spec-cont"></p>
       <button id="bSpec" class="btn apply">このスペックを適用</button>
       <p class="spec-note">保留中の抽選結果はそのままで、次の抽選から反映されます。持ち玉やデータは消えません。</p>
@@ -165,6 +169,7 @@
     <p>大当り中とRUSH・時短中は右打ちです。玉がスルーゲートを通ると電チューが開き、電チューへの入賞で図柄が回転します。大当り中は下のアタッカーが開きます。</p>
     <h3>演出の見どころ</h3>
     <p>保留やセリフ、カットインの色は 白 → 青 → 緑 → 赤 → 金 の順に期待度が上がります。虹色は大当り確定です。対決する敵は 天狗 → 大蛇 → 九尾 → 酒呑童子 の順に強敵になり、強い敵ほどチャンスです。擬似連、ステップアップ、群予告、鬼面ギミックの落下、激熱、全回転にも注目してください。</p>
+    <p>上から「鬼の大手」が落ちてきたら激アツ。下からニョッキと昇る「斬鬼刀」は宝玉の色で期待度が変わり、虹なら確定です。RUSH突入チャレンジは4体の鬼からルーレットで相手を決め、天狗なら大チャンス、酒呑童子は苦戦必至。ヘソ入賞の瞬間に虹色に光って「確定」が出たらRUSH確定の先バレです。</p>
     <p>ボタンの代わりにレバーが出たら大チャンス。そして前触れなく画面が止まり、液晶が割れて虹色に染まったら……それは大当り+RUSH突入確定の「百鬼覚醒」です。</p>
     <h3>操作</h3>
     <table class="spec">
